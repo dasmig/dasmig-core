@@ -13,24 +13,42 @@ namespace dasmig::embedded::fixture
 // clang-format off
 // lite/animals.words
 inline constexpr std::array<std::string_view, 1> file_0{
-    "Deer\n"
-    "Otter\n"
-    "Caf\303\251\n",
+    std::string_view{
+        "Deer\n"
+        "Otter\n"
+        "Caf\303\251\n"
+        , 17},
 };
 
 // lite/sample.tsv
 inline constexpr std::array<std::string_view, 8> file_1{
-    "\357\273\277code\tname\tnote\theight\n"
-    "# comment line\n"
-    "BR\tBras\303\255l\t\"quoted\" \\ back\\slash\t173.6\n"
-    "JP\t\346\227\245\346\234\254\t\303\251" "1\303\251" "2 digits after accents\t172.1\n",
-    "XX\tLong\tab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"",
-    "ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"",
-    "ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"",
-    "ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"",
-    "ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"",
-    "ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"",
-    "ab\\\"ab\\\"\t1\n",
+    std::string_view{
+        "\357\273\277code\tname\tnote\theight\n"
+        "# comment line\n"
+        "BR\tBras\303\255l\t\"quoted\" \\ back\\slash\t173.6\n"
+        "JP\t\346\227\245\346\234\254\t\303\251" "1\303\251" "2 digits after accents\t172.1\n"
+        , 123},
+    std::string_view{
+        "XX\tLong\tab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\""
+        , 200},
+    std::string_view{
+        "ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\""
+        , 200},
+    std::string_view{
+        "ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\""
+        , 200},
+    std::string_view{
+        "ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\""
+        , 200},
+    std::string_view{
+        "ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\""
+        , 200},
+    std::string_view{
+        "ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\"ab\\\""
+        , 200},
+    std::string_view{
+        "ab\\\"ab\\\"\t1\n"
+        , 11},
 };
 
 inline constexpr std::array<core::embedded_file, 2> files{{
