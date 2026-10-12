@@ -1,0 +1,69 @@
+# dasmig-core
+
+> **Requires C++23** (e.g., `-std=c++23` for GCC/Clang, `/std:c++latest` for MSVC).
+
+[![GitHub license](https://img.shields.io/badge/license-MIT-blue.svg)](https://raw.githubusercontent.com/dasmig/dasmig-core/main/LICENSE.MIT)
+[![CI](https://github.com/dasmig/dasmig-core/actions/workflows/ci.yml/badge.svg)](https://github.com/dasmig/dasmig-core/actions/workflows/ci.yml)
+[![C++23](https://img.shields.io/badge/standard-C%2B%2B23-blue.svg)](https://en.cppreference.com/w/cpp/23)
+[![Header-only](https://img.shields.io/badge/type-header--only-green.svg)](https://github.com/dasmig/dasmig-core#integration)
+
+**[Usage Guide](doc/usage.md)**
+
+The shared foundation of the dasmig generator libraries ([name](https://github.com/dasmig/name-generator), [nickname](https://github.com/dasmig/nickname-generator), [birth](https://github.com/dasmig/birth-generator), [biodata](https://github.com/dasmig/biodata-generator), [country](https://github.com/dasmig/country-generator), [city](https://github.com/dasmig/city-generator), [entity](https://github.com/dasmig/entity-generator)). Each library vendors a copy.
+
+## Features
+
+- **The same output everywhere.** A seed gives bit-identical results on GCC, Clang and MSVC, with libstdc++, libc++ or the MSVC STL, on x86-64, ARM64 and WebAssembly. The `std::` distributions cannot promise this: each standard library implements them differently.
+
+- **xoshiro256\*\* engine** seeded through SplitMix64, with `seed()`, `unseed()` and `split(label)`. A split stream depends only on the parent seed and the label, so adding a draw in one part of a generator does not shift the others.
+
+- **Distributions with fixed algorithms.** Uniform integer (Lemire), uniform real, Bernoulli, normal (Marsaglia polar), log-normal, weighted choice, shuffle (Fisher-Yates), sampling without replacement and pick.
+
+- **Deterministic `exp` and `log`** built only from operations IEEE 754 defines exactly, because platform `std::exp` and `std::log` differ in the last bit.
+
+- **Checked against an independent implementation.** `scripts/reference.py` implements every algorithm again in Python and generates the known-answer vectors the C++ tests compare against, bit for bit. The engine is checked against published test vectors.
+
+## Integration
+
+Copy [`dasmig/core.hpp`](dasmig/core.hpp) and the [`dasmig/core/`](dasmig/core) directory next to your library header, then:
+
+```cpp
+#include "core.hpp"
+
+// Fails to compile if another library in the same translation unit vendors
+// an incompatible core.
+DASMIG_CORE_REQUIRE(0, 1);
+```
+
+## Usage
+
+```cpp
+#include <dasmig/core.hpp>
+namespace core = dasmig::core;
+
+core::rng r{42};                                  // same sequence everywhere
+auto body = r.split("body");                      // independent child stream
+
+double height = core::normal(body, 170.0, 7.5);   // Marsaglia polar
+double weight = core::lognormal(body, 4.25, 0.18);
+int    mood   = core::uniform_int(r, 1, 10);      // inclusive
+bool   left   = core::bernoulli(r, 0.1);
+
+core::discrete eyes{0.79, 0.12, 0.09};            // weighted index
+std::size_t eye = eyes(r);
+```
+
+See the [usage guide](doc/usage.md) for every function and the exact algorithms.
+
+## Building
+
+```sh
+make test       # build and run the tests
+make lint       # clang-tidy
+make docs       # Doxygen
+make kat        # regenerate tests/kat_vectors.hpp from scripts/reference.py
+```
+
+## License
+
+MIT. See [LICENSE.MIT](LICENSE.MIT).
