@@ -14,14 +14,14 @@ TEST_BIN := $(BUILD)/test_runner
 COV_FLAGS := -fprofile-instr-generate -fcoverage-mapping
 COV_DIR   := coverage
 
-.PHONY: all clean lint test coverage docs kat
+.PHONY: all clean lint test coverage docs kat embed-fixtures
 
 all: $(EXAMPLE_BIN)
 
 $(EXAMPLE_BIN): $(EXAMPLE_SRC) $(HEADERS) | $(BUILD)
 	$(CXX) $(CXXFLAGS) -o $@ $(EXAMPLE_SRC)
 
-$(TEST_BIN): $(TEST_SRC) tests/kat_vectors.hpp $(HEADERS) | $(BUILD)
+$(TEST_BIN): $(TEST_SRC) tests/kat_vectors.hpp tests/embedded_fixture.hpp $(HEADERS) | $(BUILD)
 	$(CXX) $(CXXFLAGS) -o $@ $(TEST_SRC)
 
 test: $(TEST_BIN)
@@ -38,6 +38,12 @@ coverage: $(TEST_SRC) $(HEADERS) | $(BUILD)
 # Regenerate the known-answer vectors from the Python reference implementation.
 kat:
 	$(PYTHON) scripts/reference.py tests/kat_vectors.hpp
+
+# Regenerate the resource fixtures and their embedded header.
+embed-fixtures:
+	$(PYTHON) scripts/make_fixtures.py
+	$(PYTHON) scripts/embed.py tests/fixtures/resources --tier lite --name fixture \
+		--output tests/embedded_fixture.hpp --include ../dasmig/core.hpp --chunk-bytes 200
 
 $(BUILD):
 	@mkdir -p $(BUILD)

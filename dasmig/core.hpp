@@ -16,6 +16,7 @@
 #include "core/distributions.hpp"
 #include "core/json.hpp"
 #include "core/math.hpp"
+#include "core/resources.hpp"
 #include "core/rng.hpp"
 #include "core/seed_signature.hpp"
 #include "core/table.hpp"

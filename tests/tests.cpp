@@ -13,7 +13,7 @@
 #include <stdexcept>
 #include <vector>
 
-DASMIG_CORE_REQUIRE(0, 2);
+DASMIG_CORE_REQUIRE(0, 3);
 
 using dasmig::core::rng;
 namespace core = dasmig::core;

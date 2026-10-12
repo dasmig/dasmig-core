@@ -15,6 +15,7 @@ This guide covers every part of dasmig-core and specifies its random algorithms 
 <li><a href="#floating-point-requirements">Floating-Point Requirements</a></li>
 <li><a href="#data-files">Data Files</a></li>
 <li><a href="#extending-data">Extending Data</a></li>
+<li><a href="#finding-and-embedding-data">Finding and Embedding Data</a></li>
 <li><a href="#weighted-tables">Weighted Tables</a></li>
 <li><a href="#json-output">JSON Output</a></li>
 <li><a href="#seed-signatures">Seed Signatures</a></li>
@@ -34,7 +35,7 @@ Each library copies `dasmig/core.hpp` and `dasmig/core/` next to its own header 
 
 ```cpp
 #include "core.hpp"
-DASMIG_CORE_REQUIRE(0, 2);   // major must equal 0, minor must be >= 2
+DASMIG_CORE_REQUIRE(0, 3);   // major must equal 0, minor must be >= 3
 ```
 
 When two libraries are included in one translation unit, the include guards keep only the first copy of the core. `DASMIG_CORE_REQUIRE` turns a silent mismatch into a compile error.
@@ -171,6 +172,44 @@ heights.extend(core::tsv_document::parse(text_from_host, "scenario layer"), core
 - **Record.** `layers()` lists each layer's source, mode, row counts (added, replaced, removed) and warnings. `data_hash()` combines the layers' content hashes and modes, in order.
 
 A library typically keeps one layered table per data file, validates rows with the same code that reads them, and rebuilds its typed data from `rows()` after each `extend`.
+
+## Finding and Embedding Data
+
+A library's data lives in `resources/lite/` and `resources/full/`. The core finds it on disk, or reads it from the program itself when it was compiled in.
+
+**On disk.** `core::find_resources(library, marker)` returns the first of these directories (relative to the working directory, or to a `base` you pass) that contains the marker file:
+
+1. `resources`
+2. `../resources`
+3. `<library>/resources`
+4. `../<library>/resources`
+
+These cover running from the repository, from its `build/` directory, and from a parent directory holding several libraries side by side. The marker (for example `lite/biodata.tsv`) keeps one library from picking up another's `resources/`.
+
+**Compiled in.** `scripts/embed.py` turns a tier into a header:
+
+```sh
+python3 scripts/embed.py resources --tier lite --name biodatagen \
+    --output dasmig/biodatagen_data.hpp
+```
+
+The header defines `dasmig::embedded::biodatagen::files`. It is plain ASCII C++: bytes outside printable ASCII are octal escapes, so it compiles the same with or without `/utf-8`. Content is split into chunks below MSVC's string-literal limits, and CRLF is written as LF, so the header is the same from any checkout. City-generator's 3.1 MB `lite` tier becomes a 4 MB header that clang compiles in about 3 s and MSVC in about 7 s.
+
+**Loading.** `core::load_resource(path, embedded, root)` reads the embedded copy when there is one, otherwise `root / path`, otherwise returns empty:
+
+```cpp
+#ifdef DASMIG_BIODATA_EMBED
+#include "biodatagen_data.hpp"
+inline constexpr std::span<const core::embedded_file> embedded_files = dasmig::embedded::biodatagen::files;
+#else
+inline constexpr std::span<const core::embedded_file> embedded_files{};
+#endif
+
+auto root = core::find_resources("biodata-generator", "lite/biodata.tsv");
+auto doc = core::load_resource("lite/biodata.tsv", embedded_files, root);
+```
+
+The embedded and on-disk copies have the same `content_hash()`, so a WebAssembly build with compiled-in data replays the same seeds as a native build that reads files.
 
 ## Weighted Tables
 

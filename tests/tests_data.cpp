@@ -1,9 +1,10 @@
 // Tests for the data parts of the core: utf8, json, tsv, weighted_table,
-// seed_signature and layered_table.
+// seed_signature, layered_table and resources.
 
 #include "catch_amalgamated.hpp"
 
 #include "../dasmig/core.hpp"
+#include "embedded_fixture.hpp"
 
 #include <cstdint>
 #include <filesystem>
@@ -502,4 +503,115 @@ TEST_CASE("layered_table with a composite key", "[table]")
     REQUIRE(t.find({"BR", "m"})->get<int>("mean") == 173);
     REQUIRE_THROWS_AS(t.find({"BR"}), std::invalid_argument);
     REQUIRE_THROWS_AS(core::layered_table{core::table_schema{}}, std::invalid_argument);
+}
+
+// ---------------------------------------------------------------------------
+// resources
+// ---------------------------------------------------------------------------
+
+namespace
+{
+
+// tests/fixtures/resources, found the way libraries find theirs; works from
+// the repository root and from build/.
+std::filesystem::path fixture_root()
+{
+    const auto root = core::find_resources("tests/fixtures", "lite/sample.tsv");
+    REQUIRE(root.has_value());
+    return *root;
+}
+
+void require_same_content(const core::tsv_document& a, const core::tsv_document& b)
+{
+    REQUIRE(a.columns() == b.columns());
+    REQUIRE(a.size() == b.size());
+    for (std::size_t r = 0; r < a.size(); ++r)
+    {
+        for (std::size_t c = 0; c < a.columns().size(); ++c)
+        {
+            REQUIRE(a.row(r).cell(c) == b.row(r).cell(c));
+        }
+    }
+    REQUIRE(a.content_hash() == b.content_hash());
+}
+
+} // namespace
+
+TEST_CASE("tier names", "[resources]")
+{
+    STATIC_REQUIRE(core::tier_name(dasmig::dataset::lite) == "lite");
+    STATIC_REQUIRE(core::tier_name(dasmig::dataset::full) == "full");
+}
+
+TEST_CASE("embedded files decode to exactly the files on disk", "[resources]")
+{
+    const auto& files = dasmig::embedded::fixture::files;
+    REQUIRE(files.size() == 2);
+    const auto* sample = core::find_embedded(files, "lite/sample.tsv");
+    REQUIRE(sample != nullptr);
+    REQUIRE(sample->chunks.size() > 1); // the fixture is generated in small chunks
+    REQUIRE(core::find_embedded(files, "lite/missing.tsv") == nullptr);
+    REQUIRE(core::find_embedded({}, "lite/sample.tsv") == nullptr);
+
+    const auto root = fixture_root();
+    const auto from_disk = core::tsv_document::load(root / "lite" / "sample.tsv");
+    const auto from_embedded = core::tsv_document::parse(sample->text(), "embedded");
+    require_same_content(from_disk, from_embedded);
+
+    // Quotes, backslashes, multi-byte text and digits after accents survive.
+    REQUIRE(from_embedded.row(0)["note"] == R"("quoted" \ back\slash)");
+    REQUIRE(from_embedded.row(1)["name"] == "\xe6\x97\xa5\xe6\x9c\xac");
+    REQUIRE(from_embedded.row(1)["note"] == "\xc3\xa9" "1" "\xc3\xa9" "2 digits after accents");
+    REQUIRE(from_embedded.row(2)["note"].size() == 1200);
+}
+
+TEST_CASE("load_resource prefers embedded data and falls back to disk", "[resources]")
+{
+    const auto root = fixture_root();
+    const auto& files = dasmig::embedded::fixture::files;
+
+    const auto embedded = core::load_resource("lite/sample.tsv", files, root);
+    REQUIRE(embedded.has_value());
+    REQUIRE(embedded->source() == "embedded:lite/sample.tsv");
+
+    const auto disk = core::load_resource("lite/sample.tsv", {}, root);
+    REQUIRE(disk.has_value());
+    REQUIRE(disk->source() == (root / "lite/sample.tsv").generic_string());
+    require_same_content(*embedded, *disk);
+
+    // Headerless word list, both ways.
+    const auto words = core::load_resource("lite/animals.words", files, root, {"word"});
+    REQUIRE(words.has_value());
+    REQUIRE(words->row(2)["word"] == "Caf\xc3\xa9");
+    require_same_content(*words, *core::load_resource("lite/animals.words", {}, root, {"word"}));
+
+    REQUIRE_FALSE(core::load_resource("lite/missing.tsv", files, root).has_value());
+    REQUIRE_FALSE(core::load_resource("lite/sample.tsv", {}, std::nullopt).has_value());
+}
+
+TEST_CASE("find_resources searches the standard candidates", "[resources]")
+{
+    const auto probe_base = std::filesystem::temp_directory_path() / "dasmig_core_probe";
+    std::filesystem::remove_all(probe_base);
+    const auto lib_root = probe_base / "parent" / "x-generator" / "resources";
+    std::filesystem::create_directories(lib_root / "lite");
+    std::ofstream{lib_root / "lite" / "marker.tsv"} << "a\n";
+
+    // From the parent directory: <library>/resources.
+    REQUIRE(core::find_resources("x-generator", "lite/marker.tsv", probe_base / "parent") ==
+            probe_base / "parent" / "x-generator" / "resources");
+    // From the repository: resources.
+    REQUIRE(core::find_resources("x-generator", "lite/marker.tsv",
+                                 probe_base / "parent" / "x-generator") ==
+            probe_base / "parent" / "x-generator" / "resources");
+    // From a build directory inside it: ../resources.
+    std::filesystem::create_directories(probe_base / "parent" / "x-generator" / "build");
+    REQUIRE(core::find_resources("x-generator", "lite/marker.tsv",
+                                 probe_base / "parent" / "x-generator" / "build")
+                .has_value());
+    // The marker must match: another library's resources are skipped.
+    REQUIRE_FALSE(core::find_resources("x-generator", "lite/other.tsv", probe_base / "parent"));
+    REQUIRE_FALSE(core::find_resources("y-generator", "lite/marker.tsv", probe_base));
+    REQUIRE(core::resource_candidates("x-generator", probe_base).size() == 4);
+    std::filesystem::remove_all(probe_base);
 }

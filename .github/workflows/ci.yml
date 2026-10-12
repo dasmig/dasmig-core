@@ -24,10 +24,13 @@ jobs:
           sudo apt-get install -y clang-18 llvm-18 clang-tidy-18 doxygen
           echo "/usr/lib/llvm-18/bin" >> "$GITHUB_PATH"
 
-      - name: Check the known-answer vectors are up to date
+      - name: Check the generated test files are up to date
         run: |
           python3 scripts/reference.py tests/kat_vectors.hpp
-          git diff --exit-code tests/kat_vectors.hpp
+          python3 scripts/make_fixtures.py
+          python3 scripts/embed.py tests/fixtures/resources --tier lite --name fixture \
+            --output tests/embedded_fixture.hpp --include ../dasmig/core.hpp --chunk-bytes 200
+          git diff --exit-code tests/
 
       - name: Build example
         run: make all
