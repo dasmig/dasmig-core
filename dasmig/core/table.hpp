@@ -74,7 +74,9 @@ struct layer_info
 ///   place of the row it replaces, new rows are appended. Row order is part
 ///   of the output (weighted choices depend on it).
 /// - A row with `disabled` set to `1` removes its key (override and replace
-///   modes).
+///   modes). A layer needs the key columns; the other required columns are
+///   needed only by rows that add or replace data, so a layer that only
+///   removes rows can be just `key` and `disabled`.
 /// - A layer is validated completely before it is applied; when it fails,
 ///   the table is unchanged.
 ///
@@ -113,7 +115,8 @@ class layered_table
     /// @param mode How it combines with the rows loaded before.
     /// @param validate Optional `void(const tsv_row&)` row check.
     /// @return What the layer did.
-    /// @throws tsv_error On a missing required column, an empty or repeated
+    /// @throws tsv_error On a missing key column, a missing required column
+    ///         (for a row that adds or replaces data), an empty or repeated
     ///         key, an invalid `disabled` value, a clash in add mode, or an
     ///         error from @p validate. The table is then unchanged.
     const layer_info& extend(tsv_document doc, layer_mode mode = layer_mode::override,
@@ -121,9 +124,8 @@ class layered_table
     {
         layer_info info{.source = doc.source(), .mode = mode, .rows = doc.size(),
                         .hash = doc.content_hash()};
-        check_columns(doc, info);
-
         working w;
+        w.missing_required = check_columns(doc, info);
         if (mode != layer_mode::replace)
         {
             w.rows = _rows;
@@ -235,6 +237,7 @@ class layered_table
         std::map<std::string, std::size_t, std::less<>> index;
         std::vector<bool> removed;
         std::map<std::string, std::size_t, std::less<>> seen; // key -> line, within the layer
+        std::string missing_required; // a required column the layer lacks, if any
     };
 
     void apply_row(const tsv_row& row, layer_mode mode, bool has_disabled,
@@ -269,6 +272,12 @@ class layered_table
             }
             return;
         }
+        // Only rows that add or replace data need the required columns; a
+        // layer that just disables rows needs the key alone.
+        if (!w.missing_required.empty())
+        {
+            throw row.error(w.missing_required, "required column missing");
+        }
         if (validate) validate(row);
         if (exists)
         {
@@ -286,20 +295,26 @@ class layered_table
         ++info.added;
     }
 
-    void check_columns(const tsv_document& doc, layer_info& info) const
+    // Throws when a key column is missing; returns the first missing required
+    // column (empty when none), which only rows with data need.
+    std::string check_columns(const tsv_document& doc, layer_info& info) const
     {
         std::set<std::string_view> known{disabled_column};
-        for (const auto* list : {&_schema.key, &_schema.required, &_schema.optional})
+        std::string missing_required;
+        for (const auto& column : _schema.key)
         {
-            for (const auto& column : *list)
+            known.insert(column);
+            if (!doc.has_column(column))
             {
-                known.insert(column);
-                if (list != &_schema.optional && !doc.has_column(column))
-                {
-                    throw tsv_error{doc.source(), 0, column, "required column missing"};
-                }
+                throw tsv_error{doc.source(), 0, column, "key column missing"};
             }
         }
+        for (const auto& column : _schema.required)
+        {
+            known.insert(column);
+            if (missing_required.empty() && !doc.has_column(column)) missing_required = column;
+        }
+        for (const auto& column : _schema.optional) known.insert(column);
         for (const auto& column : doc.columns())
         {
             if (!known.contains(column))
@@ -308,6 +323,7 @@ class layered_table
                                         "' is not used and was ignored");
             }
         }
+        return missing_required;
     }
 
     [[nodiscard]] std::string key_of(const tsv_row& row) const

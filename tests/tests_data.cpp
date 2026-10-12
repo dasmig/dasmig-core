@@ -442,9 +442,10 @@ TEST_CASE("layered_table leaves the table unchanged when a layer fails", "[table
     REQUIRE_THROWS_WITH(t.extend(doc("code\theight\nJP\t1\nJP\t2\n")),
                         "layer.tsv:3: key repeated (first on line 2)");
     unchanged();
-    // Missing required column.
+    // Missing required column, on a row with data; and a missing key column.
     REQUIRE_THROWS_WITH(t.extend(doc("code\tnote\nJP\tx\n")),
-                        "layer.tsv: column 'height': required column missing");
+                        "layer.tsv:2: column 'height': required column missing");
+    REQUIRE_THROWS_WITH(t.extend(doc("height\n180\n")), "layer.tsv: column 'code': key column missing");
     unchanged();
     // Empty key.
     REQUIRE_THROWS_AS(t.extend(doc("code\theight\n\t1\n")), core::tsv_error);
@@ -459,6 +460,18 @@ TEST_CASE("layered_table leaves the table unchanged when a layer fails", "[table
     REQUIRE_THROWS_WITH(t.extend(doc("code\theight\nJP\t180\nSE\ttall\n"), core::layer_mode::override, validate),
                         "layer.tsv:3: column 'height': expected a number, got 'tall'");
     unchanged();
+}
+
+TEST_CASE("layered_table accepts a removal-only layer without data columns", "[table]")
+{
+    core::layered_table t{schema};
+    t.extend(doc(base), core::layer_mode::replace);
+    const auto& info = t.extend(doc("code\tdisabled\nJP\t1\n"));
+    REQUIRE(info.removed == 1);
+    REQUIRE(keys(t) == std::vector<std::string>{"BR", "NG"});
+    // ...but a row that is not disabled still needs them.
+    REQUIRE_THROWS_AS(t.extend(doc("code\tdisabled\nNG\t1\nSE\t0\n")), core::tsv_error);
+    REQUIRE(keys(t) == std::vector<std::string>{"BR", "NG"});
 }
 
 TEST_CASE("layered_table warns about unknown columns", "[table]")

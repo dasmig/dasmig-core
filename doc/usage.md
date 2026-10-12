@@ -166,7 +166,7 @@ heights.extend(core::tsv_document::parse(text_from_host, "scenario layer"), core
 
 - **Keys.** Each table declares its key columns; together they identify a row. A key cell may not be empty, and a key may appear once per layer.
 - **Removing rows.** A row with `disabled` set to `1` removes its key (`override` and `replace` modes).
-- **Columns.** A layer must have the key and required columns. Columns the table does not know are ignored and listed in the layer's warnings.
+- **Columns.** A layer must have the key columns. Rows that add or replace data also need the required columns, so a layer that only removes rows can be just the key and `disabled`. Columns the table does not know are ignored and listed in the layer's warnings.
 - **Order.** Rows keep the order they first appeared in. Weighted choices depend on order, so it is part of the output.
 - **Atomic.** A layer is checked completely before it is applied: keys, `disabled` values, add-mode clashes, and the library's own row check passed as the third argument to `extend`. If anything fails, the table is unchanged and `tsv_error` says where.
 - **Record.** `layers()` lists each layer's source, mode, row counts (added, replaced, removed) and warnings. `data_hash()` combines the layers' content hashes and modes, in order.
