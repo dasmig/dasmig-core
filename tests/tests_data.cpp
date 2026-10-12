@@ -406,6 +406,13 @@ TEST_CASE("layered_table removes rows marked disabled", "[table]")
     REQUIRE(info.warnings.size() == 1); // US was not loaded
     REQUIRE(keys(t) == std::vector<std::string>{"BR", "NG"});
     REQUIRE(t.find({"NG"})->get<double>("height") == 170.0);
+    REQUIRE(t.find({"BR"})->get<double>("height") == 173.6); // index rebuilt after removal
+    REQUIRE_FALSE(t.find({"JP"}).has_value());
+
+    // A key removed by one layer can come back in the next.
+    t.extend(doc("code\theight\nJP\t171\n"));
+    REQUIRE(keys(t) == std::vector<std::string>{"BR", "NG", "JP"});
+    REQUIRE(t.find({"JP"})->get<double>("height") == 171.0);
 }
 
 TEST_CASE("layered_table add and replace modes", "[table]")
@@ -448,8 +455,19 @@ TEST_CASE("layered_table leaves the table unchanged when a layer fails", "[table
     REQUIRE_THROWS_WITH(t.extend(doc("code\theight\nSE\t181\nJP\t1\n"), core::layer_mode::add),
                         "layer.tsv:3: key already loaded (layer is in add mode)");
     unchanged();
-    // Key repeated within the layer.
+    // Key repeated within the layer: a loaded key, a new key, and keys that
+    // the layer disabled, loaded or not.
     REQUIRE_THROWS_WITH(t.extend(doc("code\theight\nJP\t1\nJP\t2\n")),
+                        "layer.tsv:3: key repeated (first on line 2)");
+    REQUIRE_THROWS_WITH(t.extend(doc("code\theight\nSE\t1\nBR\t2\nSE\t3\n")),
+                        "layer.tsv:4: key repeated (first on line 2)");
+    REQUIRE_THROWS_WITH(t.extend(doc("code\theight\tdisabled\nJP\t\t1\nJP\t180\t0\n")),
+                        "layer.tsv:3: key repeated (first on line 2)");
+    REQUIRE_THROWS_WITH(t.extend(doc("code\theight\tdisabled\nJP\t180\t0\nJP\t\t1\n")),
+                        "layer.tsv:3: key repeated (first on line 2)");
+    REQUIRE_THROWS_WITH(t.extend(doc("code\theight\tdisabled\nUS\t\t1\nUS\t176\t0\n")),
+                        "layer.tsv:3: key repeated (first on line 2)");
+    REQUIRE_THROWS_WITH(t.extend(doc("code\theight\tdisabled\nUS\t\t1\nUS\t\t1\n")),
                         "layer.tsv:3: key repeated (first on line 2)");
     unchanged();
     // Missing required column, on a row with data; and a missing key column.
