@@ -71,6 +71,20 @@ class splitmix64
     return hash;
 }
 
+/// @brief Combine a hash with another 64-bit value, order-sensitively.
+///
+/// `splitmix64_mix(hash ^ splitmix64_mix(value))`, the same construction as
+/// rng::child_seed().
+///
+/// @param hash Running hash.
+/// @param value Value to fold in.
+/// @return The combined hash.
+[[nodiscard]] constexpr std::uint64_t hash_combine(std::uint64_t hash,
+                                                   std::uint64_t value) noexcept
+{
+    return splitmix64_mix(hash ^ splitmix64_mix(value));
+}
+
 /// @brief The core random engine: xoshiro256** (Blackman and Vigna 2018).
 ///
 /// Satisfies `std::uniform_random_bit_generator`, but use the core's own

@@ -8,7 +8,7 @@ HEADERS := dasmig/core.hpp $(wildcard dasmig/core/*.hpp)
 EXAMPLE_SRC := examples/example.cpp
 EXAMPLE_BIN := $(BUILD)/example
 
-TEST_SRC := tests/tests.cpp tests/catch_amalgamated.cpp
+TEST_SRC := tests/tests.cpp tests/tests_data.cpp tests/catch_amalgamated.cpp
 TEST_BIN := $(BUILD)/test_runner
 
 COV_FLAGS := -fprofile-instr-generate -fcoverage-mapping

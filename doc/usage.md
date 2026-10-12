@@ -1,6 +1,6 @@
 # Usage Guide
 
-This guide covers every part of dasmig-core and specifies its algorithms exactly. For a quick overview, see the [README](../README.md). For the API reference, run `doxygen Doxyfile` from the repository root and open `doc/api/html/index.html`.
+This guide covers every part of dasmig-core and specifies its random algorithms exactly. For a quick overview, see the [README](../README.md). For the API reference, run `doxygen Doxyfile` from the repository root and open `doc/api/html/index.html`.
 
 [TOC]
 
@@ -13,6 +13,12 @@ This guide covers every part of dasmig-core and specifies its algorithms exactly
 <li><a href="#distributions">Distributions</a></li>
 <li><a href="#exp-and-log">exp and log</a></li>
 <li><a href="#floating-point-requirements">Floating-Point Requirements</a></li>
+<li><a href="#data-files">Data Files</a></li>
+<li><a href="#extending-data">Extending Data</a></li>
+<li><a href="#weighted-tables">Weighted Tables</a></li>
+<li><a href="#json-output">JSON Output</a></li>
+<li><a href="#seed-signatures">Seed Signatures</a></li>
+<li><a href="#utf-8">UTF-8</a></li>
 <li><a href="#using-the-core-in-a-generator">Using the Core in a Generator</a></li>
 <li><a href="#testing">Testing</a></li>
 <li><a href="#error-reference">Error Reference</a></li>
@@ -28,7 +34,7 @@ Each library copies `dasmig/core.hpp` and `dasmig/core/` next to its own header 
 
 ```cpp
 #include "core.hpp"
-DASMIG_CORE_REQUIRE(0, 1);   // major must equal 0, minor must be >= 1
+DASMIG_CORE_REQUIRE(0, 2);   // major must equal 0, minor must be >= 2
 ```
 
 When two libraries are included in one translation unit, the include guards keep only the first copy of the core. `DASMIG_CORE_REQUIRE` turns a silent mismatch into a compile error.
@@ -112,6 +118,116 @@ Bit-identical results also need every operation rounded on its own:
 
 The tests pass bit for bit at `-O0`, `-O2` and `-O3 -march=native -ffp-contract=fast` with clang, and with MSVC at `/O2` and `/O2 /arch:AVX2`.
 
+## Data Files
+
+Every library's `resources/` and every extension layer use one TSV format, read by `core::tsv_document`:
+
+- UTF-8, with or without a byte order mark; LF or CRLF line ends.
+- The first line names the columns. For headerless lists (word lists), pass the column names to `parse` or `load`.
+- Cells are separated by one tab and are not quoted. A row may have fewer cells than columns (the rest are empty), not more.
+- Empty lines and lines starting with `#` are skipped.
+
+```cpp
+auto doc = core::tsv_document::load("resources/lite/biodata.tsv");
+for (const auto& row : doc.rows())
+{
+    std::string_view code = row["country_code"];
+    double height = row.get<double>("male_height_cm");      // exact parse
+    double sd = row.get_or("male_height_sd", 7.0);           // fallback if empty
+    auto langs = row.list("languages");                      // split on ';'
+}
+```
+
+`get<T>` accepts integers, doubles (finite, decimal or scientific, parsed exactly so every platform gets the same bits), `bool` (`1`, `0`, `true`, `false`), `std::string` and `std::string_view`. Errors are `core::tsv_error`, whose message reads `file:line: column 'name': problem`; `source()`, `line()` and `column()` give the parts.
+
+`content_hash()` hashes the parsed columns and cells, not the bytes, so the same data checked out with LF or CRLF line ends, with or without a BOM or comments, hashes the same.
+
+Rows are light views. They stay valid while the document, or any copy of it, is alive.
+
+## Extending Data
+
+`core::layered_table` assembles a table from a base layer and extension layers in the same TSV format, so users can add to the shipped data, change it or replace it without touching it.
+
+```cpp
+core::layered_table heights{{.key = {"country_code"},
+                             .required = {"male_height_cm", "female_height_cm"},
+                             .optional = {"note"}}};
+heights.extend(core::tsv_document::load("resources/lite/biodata.tsv"), core::layer_mode::replace);
+heights.extend(core::tsv_document::load("mods/heights.tsv"));   // override by default
+heights.extend(core::tsv_document::parse(text_from_host, "scenario layer"), core::layer_mode::add);
+```
+
+| Mode | Effect |
+| --- | --- |
+| `add` | New keys only; a key already loaded is an error |
+| `override` (default) | A row replaces the loaded row with the same key, in its position; new keys are appended |
+| `replace` | The layer replaces every row loaded before it |
+
+- **Keys.** Each table declares its key columns; together they identify a row. A key cell may not be empty, and a key may appear once per layer.
+- **Removing rows.** A row with `disabled` set to `1` removes its key (`override` and `replace` modes).
+- **Columns.** A layer must have the key and required columns. Columns the table does not know are ignored and listed in the layer's warnings.
+- **Order.** Rows keep the order they first appeared in. Weighted choices depend on order, so it is part of the output.
+- **Atomic.** A layer is checked completely before it is applied: keys, `disabled` values, add-mode clashes, and the library's own row check passed as the third argument to `extend`. If anything fails, the table is unchanged and `tsv_error` says where.
+- **Record.** `layers()` lists each layer's source, mode, row counts (added, replaced, removed) and warnings. `data_hash()` combines the layers' content hashes and modes, in order.
+
+A library typically keeps one layered table per data file, validates rows with the same code that reads them, and rebuilds its typed data from `rows()` after each `extend`.
+
+## Weighted Tables
+
+`core::weighted_table<T>` holds values with weights. A pick uses the same algorithm as `discrete` and consumes one engine value.
+
+```cpp
+core::weighted_table<std::string> jobs{{"farmer", 3.0}, {"nurse", 2.0}, {"pilot", 0.2}};
+const auto& job = jobs.pick(r);
+
+// Context changes the weights for one call: return the base weight, a
+// multiple of it, or 0 to exclude the entry.
+const auto& teen_job = jobs.pick(r, [&](const std::string& j, double w) {
+    return (j == "pilot" && age < 21) ? 0.0 : w;
+});
+
+auto hobbies = hobby_table.pick_distinct_indices(r, 3);   // 3 different entries
+```
+
+- `try_pick` returns `nullptr` when every adjusted weight is 0; it still consumes one value, so later draws do not shift.
+- `pick_distinct_indices(r, k[, adjust])` draws k times without repeating an entry. It consumes exactly k values and returns fewer than k entries when fewer are eligible.
+- Weights must be finite and not negative, before and after adjustment.
+
+## JSON Output
+
+`core::json_writer` builds one compact JSON document. It places commas itself and throws `std::logic_error` on misuse (a value without a key in an object, unbalanced ends, a second top-level value).
+
+```cpp
+core::json_writer w;
+w.begin_object()
+    .field("name", "Ana")
+    .field("height_cm", 167.5)
+    .key("tags").begin_array().value("calm").value("curious").end_array()
+ .end_object();
+std::string json = w.str();
+```
+
+Numbers are written with `std::to_chars`, the shortest text that reads back to the same double, so the JSON is identical on every platform. NaN and infinity are rejected. Strings must be UTF-8 and are escaped as RFC 8259 requires.
+
+JavaScript numbers are doubles, so integers above 2^53 lose precision there. Write 64-bit values such as seeds as strings.
+
+## Seed Signatures
+
+`core::seed_signature` is what a result records so it can be generated again: the call seed and the hash of the data it came from.
+
+```cpp
+core::seed_signature sig{.seed = call_seed, .data = table.data_hash()};
+sig.to_string();                          // "00000000000004d2-9ae16a3b2f90404f"
+auto back = core::seed_signature::parse("00000000000004d2-9ae16a3b2f90404f");
+sig.to_json(writer);                      // {"seed":"00000000000004d2","data":"9ae16a3b2f90404f"}
+```
+
+A seed reproduces a result only with the same data. When `data` differs from the data loaded now, a library can report the mismatch instead of returning a different result silently. `parse` also accepts a lone 16-digit seed (data 0, meaning "not recorded").
+
+## UTF-8
+
+The core works in UTF-8. Libraries with a `std::wstring` API convert at the boundary with `core::to_utf8` and `core::from_utf8`. They handle UTF-16 `wchar_t` (Windows) and UTF-32 (elsewhere), so the bytes are the same everywhere; that matters for split labels and for hashes. `core::is_utf8` and `core::utf8_invalid_offset` check input.
+
 ## Using the Core in a Generator
 
 The pattern every library follows:
@@ -160,3 +276,10 @@ Splitting per field keeps a result's other fields unchanged when one field's alg
 | `discrete::probability` | `std::out_of_range` | index out of range |
 | `sample_indices` | `std::invalid_argument` | `k > n` |
 | `pick` | `std::invalid_argument` | empty range |
+| `weighted_table::add`, `pick`, `try_pick` | `std::invalid_argument` | a weight (base or adjusted) negative or not finite; `pick` when nothing is eligible |
+| `tsv_document::parse`, `load` | `core::tsv_error` | unreadable file, invalid UTF-8, no header, an unnamed or repeated column, a row with too many cells |
+| `tsv_row::get` | `core::tsv_error` | no such column, empty cell, text that is not a valid value |
+| `layered_table::extend` | `core::tsv_error` | see Extending Data above; the table is unchanged |
+| `json_writer` | `std::logic_error` / `std::invalid_argument` | misuse / NaN, infinity or invalid UTF-8 |
+| `seed_signature::parse` | `std::invalid_argument` | not `<16 hex>` or `<16 hex>-<16 hex>` |
+| `from_utf8`, `to_utf8` | `std::invalid_argument` | malformed UTF-8 / unpaired surrogate |

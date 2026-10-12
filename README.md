@@ -21,6 +21,10 @@ The shared foundation of the dasmig generator libraries ([name](https://github.c
 
 - **Deterministic `exp` and `log`** built only from operations IEEE 754 defines exactly, because platform `std::exp` and `std::log` differ in the last bit.
 
+- **Data tables with extension layers.** A TSV reader with typed, exactly parsed cells and located errors (`file:line: column: problem`), and layered tables: users add, override or replace rows with their own files, validated atomically, with a data hash for replay.
+
+- **Weighted tables, JSON and seed signatures.** Weighted choice with per-call conditional weights and exclusions; a dependency-free JSON writer with platform-independent number formatting; a `seed-data` replay format.
+
 - **Checked against an independent implementation.** `scripts/reference.py` implements every algorithm again in Python and generates the known-answer vectors the C++ tests compare against, bit for bit. The engine is checked against published test vectors.
 
 ## Integration
@@ -32,7 +36,7 @@ Copy [`dasmig/core.hpp`](dasmig/core.hpp) and the [`dasmig/core/`](dasmig/core) 
 
 // Fails to compile if another library in the same translation unit vendors
 // an incompatible core.
-DASMIG_CORE_REQUIRE(0, 1);
+DASMIG_CORE_REQUIRE(0, 2);
 ```
 
 ## Usage

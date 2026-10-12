@@ -7,7 +7,7 @@
 #include <vector>
 
 // Libraries check that the vendored core in use is compatible.
-DASMIG_CORE_REQUIRE(0, 1);
+DASMIG_CORE_REQUIRE(0, 2);
 
 namespace core = dasmig::core;
 
@@ -52,6 +52,33 @@ int main()
         std::cout << ' ' << card;
     }
     std::cout << "\nPicked: " << core::pick(r, deck) << '\n';
+
+    // Data: a base layer and an extension layer that overrides one row.
+    core::layered_table heights{{.key = {"code"}, .required = {"height"}, .optional = {}}};
+    heights.extend(core::tsv_document::parse("code\theight\nBR\t173.6\nJP\t172.1\n", "base"),
+                   core::layer_mode::replace);
+    heights.extend(core::tsv_document::parse("code\theight\nJP\t175\n", "mod"));
+
+    // Weighted choice with a per-call condition.
+    const core::weighted_table<std::string_view> jobs{{.value = "farmer", .weight = 3.0},
+                                                      {.value = "nurse", .weight = 2.0},
+                                                      {.value = "pilot", .weight = 0.2}};
+    const int age = 17;
+    const auto& job = jobs.pick(r, [&](std::string_view j, double w) {
+        return (j == "pilot" && age < 21) ? 0.0 : w;
+    });
+
+    // JSON, with the replay signature (seed plus the data it used).
+    core::json_writer json;
+    json.begin_object().field("job", job).key("heights").begin_object();
+    for (const auto& row : heights.rows())
+    {
+        json.field(row["code"], row.get<double>("height"));
+    }
+    json.end_object().key("replay");
+    core::seed_signature{.seed = person.seed(), .data = heights.data_hash()}.to_json(json);
+    json.end_object();
+    std::cout << "\nJSON: " << json.str() << '\n';
 
     // A replayed seed gives the same result.
     core::rng replay{person.child_seed("body")};

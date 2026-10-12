@@ -130,6 +130,26 @@ template <std::integral T>
     return static_cast<double>(r() >> 11U) * 0x1.0p-53;
 }
 
+/// @cond INTERNAL
+namespace detail
+{
+
+// The weighted choice shared by discrete and weighted_table: the first index
+// whose cumulative weight exceeds uniform01(r) * total. Rounding can make the
+// target reach the total; then the last index with a positive weight.
+[[nodiscard]] inline std::size_t pick_cumulative(rng& r,
+                                                 const std::vector<double>& cumulative,
+                                                 std::size_t last_positive)
+{
+    const double target = uniform01(r) * cumulative.back();
+    const auto it = std::ranges::upper_bound(cumulative, target);
+    if (it == cumulative.end()) return last_positive;
+    return static_cast<std::size_t>(it - cumulative.begin());
+}
+
+} // namespace detail
+/// @endcond
+
 /// @brief Uniform double in [lo, hi).
 ///
 /// `lo + (hi - lo) * uniform01(r)`, replaced by the largest double below
@@ -277,10 +297,7 @@ class discrete
     /// @return An index in [0, size()) with a positive weight.
     [[nodiscard]] std::size_t operator()(rng& r) const
     {
-        const double target = uniform01(r) * total();
-        const auto it = std::ranges::upper_bound(_cumulative, target);
-        if (it == _cumulative.end()) return _last_positive;
-        return static_cast<std::size_t>(it - _cumulative.begin());
+        return detail::pick_cumulative(r, _cumulative, _last_positive);
     }
 
     /// @brief Number of weights.
