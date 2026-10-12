@@ -7,7 +7,7 @@
 #include <vector>
 
 // Libraries check that the vendored core in use is compatible.
-DASMIG_CORE_REQUIRE(0, 3);
+DASMIG_CORE_REQUIRE(1, 0);
 
 namespace core = dasmig::core;
 

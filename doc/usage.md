@@ -35,7 +35,7 @@ Each library copies `dasmig/core.hpp` and `dasmig/core/` next to its own header 
 
 ```cpp
 #include "core.hpp"
-DASMIG_CORE_REQUIRE(0, 3);   // major must equal 0, minor must be >= 3
+DASMIG_CORE_REQUIRE(1, 0);   // major must equal 1, minor must be >= 0
 ```
 
 When two libraries are included in one translation unit, the include guards keep only the first copy of the core. `DASMIG_CORE_REQUIRE` turns a silent mismatch into a compile error.

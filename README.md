@@ -38,7 +38,7 @@ Copy [`dasmig/core.hpp`](dasmig/core.hpp) and the [`dasmig/core/`](dasmig/core) 
 
 // Fails to compile if another library in the same translation unit vendors
 // an incompatible core.
-DASMIG_CORE_REQUIRE(0, 3);
+DASMIG_CORE_REQUIRE(1, 0);
 ```
 
 ## Usage
