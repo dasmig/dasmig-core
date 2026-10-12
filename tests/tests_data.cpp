@@ -416,7 +416,17 @@ TEST_CASE("layered_table add and replace modes", "[table]")
     REQUIRE(t.size() == 4);
     t.extend(doc("code\theight\nUS\t176\n"), core::layer_mode::replace);
     REQUIRE(keys(t) == std::vector<std::string>{"US"});
-    REQUIRE(t.layers().size() == 3);
+    REQUIRE(t.layers().size() == 1); // replace starts the history again
+    REQUIRE(t.layers().front().source == "layer.tsv");
+
+    // Reloading the same base after other layers gives the original hash.
+    core::layered_table u{schema};
+    u.extend(doc(base), core::layer_mode::replace);
+    const auto base_hash = u.data_hash();
+    u.extend(doc("code\theight\nSE\t181\n"));
+    REQUIRE(u.data_hash() != base_hash);
+    u.extend(doc(base), core::layer_mode::replace);
+    REQUIRE(u.data_hash() == base_hash);
     t.clear();
     REQUIRE(t.empty());
     REQUIRE(t.layers().empty());

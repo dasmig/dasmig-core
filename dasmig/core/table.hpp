@@ -149,8 +149,14 @@ class layered_table
             kept.push_back(w.rows[i]);
         }
 
-        // Commit: nothing below throws except allocation.
-        if (mode == layer_mode::replace) _documents.clear(); // no row refers to them now
+        // Commit: nothing below throws except allocation. A replace layer
+        // discards everything before it, so the history (and data_hash())
+        // starts again: reloading the same base gives the same hash.
+        if (mode == layer_mode::replace)
+        {
+            _documents.clear();
+            _layers.clear();
+        }
         _documents.push_back(std::move(doc));
         _rows = std::move(kept);
         _index = std::move(kept_index);
@@ -202,7 +208,8 @@ class layered_table
         return _rows[it->second];
     }
 
-    /// @brief The layers loaded, in order.
+    /// @brief The layers in effect, in order: the last replace layer and
+    ///        those after it.
     /// @return The layer records.
     [[nodiscard]] const std::vector<layer_info>& layers() const noexcept { return _layers; }
 

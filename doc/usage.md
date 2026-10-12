@@ -169,7 +169,7 @@ heights.extend(core::tsv_document::parse(text_from_host, "scenario layer"), core
 - **Columns.** A layer must have the key columns. Rows that add or replace data also need the required columns, so a layer that only removes rows can be just the key and `disabled`. Columns the table does not know are ignored and listed in the layer's warnings.
 - **Order.** Rows keep the order they first appeared in. Weighted choices depend on order, so it is part of the output.
 - **Atomic.** A layer is checked completely before it is applied: keys, `disabled` values, add-mode clashes, and the library's own row check passed as the third argument to `extend`. If anything fails, the table is unchanged and `tsv_error` says where.
-- **Record.** `layers()` lists each layer's source, mode, row counts (added, replaced, removed) and warnings. `data_hash()` combines the layers' content hashes and modes, in order.
+- **Record.** `layers()` lists each layer's source, mode, row counts (added, replaced, removed) and warnings. `data_hash()` combines the layers' content hashes and modes, in order. A `replace` layer starts the record again, since nothing before it affects the data: reloading the same base gives the same hash.
 
 A library typically keeps one layered table per data file, validates rows with the same code that reads them, and rebuilds its typed data from `rows()` after each `extend`.
 
