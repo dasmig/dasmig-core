@@ -153,7 +153,7 @@ jobs:
       - name: Build and run tests
         run: |
           mkdir -p build
-          em++ -std=c++23 -O2 -fexceptions -sALLOW_MEMORY_GROWTH -I. \
+          em++ -std=c++23 -O2 -fexceptions -sALLOW_MEMORY_GROWTH -sNODERAWFS -I. \
             -o build/test_runner.js tests/tests.cpp tests/tests_data.cpp tests/catch_amalgamated.cpp
           node build/test_runner.js
 
