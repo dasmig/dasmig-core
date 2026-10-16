@@ -6,7 +6,9 @@
 #include "../dasmig/core.hpp"
 #include "embedded_fixture.hpp"
 
+#include <bit>
 #include <cstdint>
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <limits>
@@ -175,6 +177,65 @@ TEST_CASE("tsv converts typed cells exactly and reports bad ones", "[tsv]")
         REQUIRE(e.source() == "typed.tsv");
         REQUIRE(e.line() == 4);
         REQUIRE(e.column() == "i");
+    }
+}
+
+TEST_CASE("tsv parses decimals to the same doubles as a correctly rounded parser", "[tsv]")
+{
+    // The reference: strtod in the C locale, correctly rounded on every
+    // platform the core supports.
+    auto reference = [](const std::string& text) {
+        char* end = nullptr;
+        const double value = std::strtod(text.c_str(), &end);
+        REQUIRE(end == text.c_str() + text.size());
+        return std::bit_cast<std::uint64_t>(value);
+    };
+    auto parsed = [](const std::string& text) {
+        const auto value = core::detail::parse_number<double>(text);
+        REQUIRE(value);
+        return std::bit_cast<std::uint64_t>(*value);
+    };
+
+    // The fast path takes these; the last ones are at its limits.
+    for (const std::string text : {"0.111803", "173.6", "-0.0", "0", "007", ".5", "5.", "-.5", "1.e3",
+                                   "1E+05", "00012.5000", "2.5e-3", "9007199254740992", "1e22", "1e-22",
+                                   "9007199254740991e-22"})
+    {
+        INFO(text);
+        REQUIRE(core::detail::parse_decimal_fast(text));
+        REQUIRE(parsed(text) == reference(text));
+    }
+    // These go to the general parser: too many digits, past 2^53, past 10^22.
+    for (const std::string text : {"9007199254740993", "12345678901234567890", "1e23", "1e-23",
+                                   "123456789012345678e-22", "1e300", "0.1000000000000000055511151231257827"})
+    {
+        INFO(text);
+        REQUIRE_FALSE(core::detail::parse_decimal_fast(text));
+        REQUIRE(parsed(text) == reference(text));
+    }
+    for (const std::string text : {"", "-", ".", "-.", "1.2.3", "1e", "1e+", "+-1", "--1", "1 ", " 1", "1,5",
+                                   "e5", "0x10"})
+    {
+        INFO(text);
+        REQUIRE_FALSE(core::detail::parse_decimal_fast(text));
+    }
+    REQUIRE_FALSE(core::detail::parse_number<double>("1e10000")); // overflows: not finite
+
+    // Random decimals: 1 to 19 digits, any point position, optional sign and exponent.
+    rng r{20261015};
+    for (int n = 0; n < 50000; ++n)
+    {
+        std::string text = core::bernoulli(r, 0.3) ? "-" : "";
+        const auto digits = core::uniform_int(r, 1, 19);
+        const auto point = core::uniform_int(r, 0, digits);
+        for (int d = 0; d < digits; ++d)
+        {
+            if (d == point && core::bernoulli(r, 0.8)) text += '.';
+            text += static_cast<char>('0' + core::uniform_int(r, 0, 9));
+        }
+        if (core::bernoulli(r, 0.3)) text += "e" + std::to_string(core::uniform_int(r, -40, 40));
+        INFO(text);
+        REQUIRE(parsed(text) == reference(text));
     }
 }
 
