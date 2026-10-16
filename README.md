@@ -27,6 +27,8 @@ The shared foundation of the dasmig generator libraries ([name](https://github.c
 
 - **Weighted tables, JSON and seed signatures.** Weighted choice with per-call conditional weights and exclusions; a dependency-free JSON writer with platform-independent number formatting; a `seed-data` replay format.
 
+- **Batch generation.** `item_seed`, `run_batch` and `for_each_batch` generate many results from one seed, in parallel if asked, with the same output for any thread count, optional uniqueness by a key, and JSON Lines and CSV writers for the results.
+
 - **Checked against an independent implementation.** `scripts/reference.py` implements every algorithm again in Python and generates the known-answer vectors the C++ tests compare against, bit for bit. The engine is checked against published test vectors.
 
 ## Integration

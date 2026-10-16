@@ -346,6 +346,27 @@ def emit():
             h = ((h ^ byte) * 0x100000001B3) & M64
     add(f"inline constexpr std::uint64_t normal_29_hash_100k = 0x{h:016x}ULL;")
 
+    # Batch seeds: item_seed(batch, i) is the index child seed; attempt 0 of a
+    # unique batch is the item seed, attempt k > 0 is item_seed(item_seed, k).
+    def item_seed(batch, i):
+        return Rng(batch).child_seed_index(i)
+
+    def attempt_seed(batch, i, k):
+        base = item_seed(batch, i)
+        return base if k == 0 else item_seed(base, k)
+
+    item_indices = [0, 1, 2, 1000, (1 << 32), M64]
+    add(f"inline constexpr std::array<std::uint64_t, {len(item_indices)}> item_index{{{u64_list(item_indices)}}};")
+    add(f"inline constexpr std::array<std::uint64_t, {len(item_indices)}> item_seed_7{{{u64_list(item_seed(7, i) for i in item_indices)}}};")
+    add(f"inline constexpr std::array<std::uint64_t, 4> attempt_seed_7_5{{{u64_list(attempt_seed(7, 5, k) for k in range(4))}}};")
+    # The first draw of each of 10,000 items: catches a change in how item
+    # seeds are derived or fed to the engine anywhere in a long batch.
+    h = 0xCBF29CE484222325
+    for i in range(10000):
+        for byte in struct.pack("<Q", Rng(item_seed(99, i))()):
+            h = ((h ^ byte) * 0x100000001B3) & M64
+    add(f"inline constexpr std::uint64_t batch_99_hash_10k = 0x{h:016x}ULL;")
+
     add("} // namespace kat")
     add("#endif // DASMIG_CORE_KAT_VECTORS_HPP")
     return "\n".join(out) + "\n"
