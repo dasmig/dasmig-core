@@ -31,5 +31,9 @@ inline constexpr std::array<std::uint64_t, 17> exp_out{0x3ff0000000000000ULL, 0x
 inline constexpr std::array<std::uint64_t, 17> log_in{0x3ff0000000000000ULL, 0x4000000000000000ULL, 0x3fe0000000000000ULL, 0x4024000000000000ULL, 0x3fb999999999999aULL, 0x01a56e1fc2f8f359ULL, 0x7e37e43c8800759cULL, 0x0000000000000001ULL, 0x3fe6a09e667f3bcdULL, 0x3ff6a09e667f3bcdULL, 0x3ff000000006df38ULL, 0x3feffffffff24190ULL, 0x40fe240c9fbe76c9ULL, 0x4008000000000000ULL, 0x3fd3333333333334ULL, 0x7fefffffffffffffULL, 0x0010000000000000ULL};
 inline constexpr std::array<std::uint64_t, 17> log_out{0x0000000000000000ULL, 0x3fe62e42fefa39efULL, 0xbfe62e42fefa39efULL, 0x40026bb1bbb55516ULL, 0xc0026bb1bbb55515ULL, 0xc085963447f87fb5ULL, 0x4085963447f87fb5ULL, 0xc0874385446d71c3ULL, 0xbfd62e42fefa39eeULL, 0x3fd62e42fefa39f0ULL, 0x3ddb7cdffffa18d8ULL, 0xbddb7ce00005e728ULL, 0x40277281cad8a844ULL, 0x3ff193ea7aad030bULL, 0xbff34378fcbda720ULL, 0x40862e42fefa39efULL, 0xc086232bdd7abcd2ULL};
 inline constexpr std::uint64_t normal_29_hash_100k = 0x5fb1d6c39eba5155ULL;
+inline constexpr std::array<std::uint64_t, 6> item_index{0x0000000000000000ULL, 0x0000000000000001ULL, 0x0000000000000002ULL, 0x00000000000003e8ULL, 0x0000000100000000ULL, 0xffffffffffffffffULL};
+inline constexpr std::array<std::uint64_t, 6> item_seed_7{0x4b34cbb741cdabdbULL, 0x480e042d0710436cULL, 0xf7c38cb0f03c5a31ULL, 0xaaa8021beaabd987ULL, 0xf0cee5c8c95048faULL, 0x7017cb528c5fa2c9ULL};
+inline constexpr std::array<std::uint64_t, 4> attempt_seed_7_5{0xe4778e65651298f4ULL, 0x60b8d8a68228a204ULL, 0x85d48a1bc82622e1ULL, 0xd14496081dc0c078ULL};
+inline constexpr std::uint64_t batch_99_hash_10k = 0x7d38c3b970ad00caULL;
 } // namespace kat
 #endif // DASMIG_CORE_KAT_VECTORS_HPP
