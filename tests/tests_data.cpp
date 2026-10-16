@@ -355,6 +355,24 @@ TEST_CASE("weighted_table picks exactly like discrete", "[weighted_table]")
     REQUIRE(table.size() == 5);
 }
 
+TEST_CASE("weighted_table: an identity adjustment picks as pick_index, small and large", "[weighted_table]")
+{
+    // try_pick_index keeps up to 64 sums on the stack and the rest on the heap.
+    for (const std::size_t size : {1U, 10U, 64U, 65U, 200U})
+    {
+        CAPTURE(size);
+        core::weighted_table<std::size_t> table;
+        for (std::size_t i = 0; i < size; ++i) table.add(i, i % 7 == 3 ? 0.0 : 0.5 + static_cast<double>(i % 5));
+        rng r1{size};
+        rng r2{size};
+        for (int i = 0; i < 2000; ++i)
+        {
+            REQUIRE(table.try_pick_index(r1, [](std::size_t, double w) { return w; }) == table.pick_index(r2));
+        }
+        REQUIRE(r1 == r2);
+    }
+}
+
 TEST_CASE("weighted_table adjusts weights per call and excludes", "[weighted_table]")
 {
     core::weighted_table<std::string> jobs;
