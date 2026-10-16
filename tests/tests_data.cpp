@@ -10,6 +10,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <filesystem>
+#include <format>
 #include <fstream>
 #include <limits>
 #include <optional>
@@ -91,6 +92,51 @@ TEST_CASE("json_writer escapes strings and formats numbers exactly", "[json]")
     REQUIRE(one(std::numeric_limits<std::uint64_t>::max()) == "18446744073709551615");
     REQUIRE(one(false) == "false");
     REQUIRE(one("x") == "\"x\""); // a literal is a string, not a bool
+}
+
+TEST_CASE("json_writer::escape matches a byte-at-a-time escape", "[json]")
+{
+    // The escape as first written, one byte at a time.
+    const auto reference = [](std::string_view text) {
+        std::string out = "\"";
+        for (const char c : text)
+        {
+            const auto b = static_cast<std::uint8_t>(c);
+            switch (c)
+            {
+            case '"': out += "\\\""; break;
+            case '\\': out += "\\\\"; break;
+            case '\b': out += "\\b"; break;
+            case '\f': out += "\\f"; break;
+            case '\n': out += "\\n"; break;
+            case '\r': out += "\\r"; break;
+            case '\t': out += "\\t"; break;
+            default:
+                if (b < 0x20U) out += std::format("\\u{:04x}", b);
+                else out += c;
+            }
+        }
+        return out + "\"";
+    };
+    // Appends to what is already in the string.
+    const auto escaped = [](std::string_view text) {
+        std::string out = "prefix";
+        core::json_writer::escape(out, text);
+        REQUIRE(out.starts_with("prefix"));
+        return out.substr(6);
+    };
+    REQUIRE(escaped("") == "\"\"");
+    for (int a = 0; a < 0x80; ++a)
+    {
+        const std::string one(1, static_cast<char>(a));
+        REQUIRE(escaped(one) == reference(one));
+        for (int b = 0; b < 0x80; ++b)
+        {
+            const std::string text = "ab" + one + std::string(1, static_cast<char>(b)) + "\xc3\xa9z";
+            REQUIRE(escaped(text) == reference(text));
+            REQUIRE(escaped(one + std::string(1, static_cast<char>(b))) == reference(one + std::string(1, static_cast<char>(b))));
+        }
+    }
 }
 
 TEST_CASE("json_writer rejects misuse", "[json][errors]")

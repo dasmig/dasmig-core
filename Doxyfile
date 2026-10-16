@@ -2,7 +2,7 @@
 # Run: doxygen Doxyfile
 
 PROJECT_NAME           = "dasmig-core"
-PROJECT_NUMBER         = 1.0.1
+PROJECT_NUMBER         = 1.0.2
 PROJECT_BRIEF          = "Shared random engine, distributions and data tiers for the dasmig generator libraries"
 PROJECT_LOGO           =
 
