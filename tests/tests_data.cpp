@@ -671,6 +671,48 @@ TEST_CASE("layered_table with a composite key", "[table]")
     REQUIRE_THROWS_AS(core::layered_table{core::table_schema{}}, std::invalid_argument);
 }
 
+TEST_CASE("layered_table finds every key through growth, overrides and removals", "[table]")
+{
+    // 5,000 keys grow the index several times; the keys include ones that
+    // are prefixes of each other and a composite pair that joins ambiguously.
+    std::string text = "code\theight\n";
+    for (int i = 0; i < 5000; ++i) text += "K" + std::to_string(i) + "\t" + std::to_string(i) + "\n";
+    core::layered_table t{schema};
+    t.extend(doc(text), core::layer_mode::replace);
+    REQUIRE(t.size() == 5000);
+    for (int i = 0; i < 5000; i += 7)
+    {
+        REQUIRE(t.find({"K" + std::to_string(i)})->get<int>("height") == i);
+    }
+    REQUIRE_FALSE(t.find({"K5000"}).has_value());
+    REQUIRE_FALSE(t.find({"K"}).has_value());
+
+    // Override some, remove some, add some, then look everything up again.
+    std::string layer = "code\theight\tdisabled\n";
+    for (int i = 0; i < 5000; i += 10) layer += "K" + std::to_string(i) + "\t-1\t\n";
+    for (int i = 5; i < 5000; i += 10) layer += "K" + std::to_string(i) + "\t\t1\n";
+    layer += "NEW\t9\t\n";
+    const auto& info = t.extend(doc(layer));
+    REQUIRE(info.replaced == 500);
+    REQUIRE(info.removed == 500);
+    REQUIRE(info.added == 1);
+    REQUIRE(t.size() == 4501);
+    for (int i = 0; i < 5000; ++i)
+    {
+        const auto row = t.find({"K" + std::to_string(i)});
+        if (i % 10 == 5) REQUIRE_FALSE(row.has_value());
+        else REQUIRE(row->get<int>("height") == (i % 10 == 0 ? -1 : i));
+    }
+    REQUIRE(t.find({"NEW"})->get<int>("height") == 9);
+
+    core::layered_table pairs{{.key = {"a", "b"}, .required = {}, .optional = {}}};
+    pairs.extend(doc("a\tb\nx\tyz\nxy\tz\n"), core::layer_mode::replace);
+    REQUIRE(pairs.size() == 2);
+    REQUIRE(pairs.find({"x", "yz"})->get<std::string>("b") == "yz");
+    REQUIRE(pairs.find({"xy", "z"})->get<std::string>("b") == "z");
+    REQUIRE_FALSE(pairs.find({"xyz", ""}).has_value());
+}
+
 // ---------------------------------------------------------------------------
 // resources
 // ---------------------------------------------------------------------------
