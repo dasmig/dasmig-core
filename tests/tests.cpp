@@ -11,6 +11,7 @@
 #include <numeric>
 #include <set>
 #include <stdexcept>
+#include <string>
 #include <vector>
 
 DASMIG_CORE_REQUIRE(1, 0);
@@ -65,6 +66,53 @@ TEST_CASE("dataset enum is defined once behind the legacy guard", "[dataset]")
     FAIL("DASMIG_DATASET_DEFINED not set: old library headers would redefine dataset");
 #endif
     STATIC_REQUIRE(dasmig::dataset::lite != dasmig::dataset::full);
+}
+
+TEST_CASE("sex enum is defined once behind the legacy guard", "[sex]")
+{
+#ifndef DASMIG_SEX_DEFINED
+    FAIL("DASMIG_SEX_DEFINED not set: old library headers would redefine sex");
+#endif
+    STATIC_REQUIRE(dasmig::sex::male != dasmig::sex::female);
+}
+
+TEST_CASE("sex_name and parse_sex round-trip", "[sex]")
+{
+    STATIC_REQUIRE(core::sex_name(dasmig::sex::male) == "male");
+    STATIC_REQUIRE(core::sex_name(dasmig::sex::female) == "female");
+    STATIC_REQUIRE(core::sex_name(static_cast<dasmig::sex>(7)) == "unknown");
+    STATIC_REQUIRE(core::parse_sex("male") == dasmig::sex::male);
+    STATIC_REQUIRE(core::parse_sex("female") == dasmig::sex::female);
+    for (const auto s : {dasmig::sex::male, dasmig::sex::female})
+    {
+        REQUIRE(core::parse_sex(core::sex_name(s)) == s);
+    }
+}
+
+TEST_CASE("parse_sex is exact and case-sensitive", "[sex]")
+{
+    for (const char* text : {"", "m", "f", "Male", "FEMALE", " male", "male ", "other", "unknown"})
+    {
+        REQUIRE_FALSE(core::parse_sex(text).has_value());
+    }
+}
+
+TEST_CASE("is_alpha2 accepts exactly two capital ASCII letters", "[country]")
+{
+    STATIC_REQUIRE(core::is_alpha2("BR"));
+    STATIC_REQUIRE(core::is_alpha2("ZZ"));
+    for (const char* text : {"", "B", "BRA", "br", "Br", "bR", "B1", "1B", "B ", "--", "B\xC3\x89"})
+    {
+        REQUIRE_FALSE(core::is_alpha2(text));
+    }
+}
+
+TEST_CASE("unknown_country_error carries the code", "[country]")
+{
+    const auto error = core::unknown_country_error("XX");
+    REQUIRE(std::string{error.what()} == "Unknown country code: XX");
+    REQUIRE_THROWS_AS([] { throw core::unknown_country_error("QQ"); }(), std::invalid_argument);
+    REQUIRE_THROWS_WITH([] { throw core::unknown_country_error(""); }(), "Unknown country code: ");
 }
 
 // ---------------------------------------------------------------------------
