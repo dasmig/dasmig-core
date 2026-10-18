@@ -42,6 +42,29 @@ When two libraries are included in one translation unit, the include guards keep
 
 The `dasmig::dataset` enum (`lite`, `full`) lives in the core. The core also defines `DASMIG_DATASET_DEFINED`, so library headers released before the core skip their own copy.
 
+## Shared Types
+
+### Sex
+
+`dasmig::sex` (`male`, `female`) lives in the core, so every library that takes or returns a sex uses one type. `core::sex_name(sex)` gives the lower-case name used in data files and JSON (`"male"`, `"female"`), and `core::parse_sex(text)` reads it back, returning an empty optional for anything else. Matching is exact: `"Male"` and `"m"` are rejected. Both are `constexpr`.
+
+Like `dataset`, the enum sits behind a guard (`DASMIG_SEX_DEFINED`), so library headers released before core 1.2 skip their own identical copy when included together.
+
+```cpp
+dasmig::sex s = core::parse_sex(row["sex"]).value_or(dasmig::sex::female);
+json.field("sex", core::sex_name(s));
+```
+
+### Country codes
+
+`core::is_alpha2(text)` is `true` for exactly two capital ASCII letters (`"BR"`, not `"br"` or `"BRA"`). It checks the shape only, not whether the code is assigned or whether a library has data for it. `core::unknown_country_error(code)` returns the `std::invalid_argument` libraries throw for a code they have no data for; its message is `Unknown country code: <code>`.
+
+```cpp
+if (!core::is_alpha2(code)) throw row.error("country_code", "expected two capital letters (ISO 3166-1 alpha-2)");
+// ...
+if (it == index.end()) throw core::unknown_country_error(code);
+```
+
 ## The Engine
 
 `dasmig::core::rng` is xoshiro256\*\* (Blackman and Vigna, 2018) with 256 bits of state.
@@ -356,3 +379,4 @@ Splitting per field keeps a result's other fields unchanged when one field's alg
 | `json_writer` | `std::logic_error` / `std::invalid_argument` | misuse / NaN, infinity or invalid UTF-8 |
 | `seed_signature::parse` | `std::invalid_argument` | not `<16 hex>` or `<16 hex>-<16 hex>` |
 | `from_utf8`, `to_utf8` | `std::invalid_argument` | malformed UTF-8 / unpaired surrogate |
+| `unknown_country_error` | returns `std::invalid_argument` | the caller throws it for a country code with no data |
