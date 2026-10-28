@@ -143,6 +143,84 @@ def det_log(x):
     return (k * LN2_HI) + (log_m + (k * LN2_LO))
 
 
+def c_round(x):
+    """std::round: halves away from zero (Python's round() goes to even)."""
+    f = math.floor(abs(x))
+    if abs(x) - f >= 0.5:
+        f += 1.0
+    return math.copysign(f, x)
+
+
+SIN_TERMS = [-1.0 / 1307674368000.0, 1.0 / 6227020800.0, -1.0 / 39916800.0, 1.0 / 362880.0,
+             -1.0 / 5040.0, 1.0 / 120.0, -1.0 / 6.0, 1.0]
+COS_TERMS = [-1.0 / 87178291200.0, 1.0 / 479001600.0, -1.0 / 3628800.0, 1.0 / 40320.0,
+             -1.0 / 720.0, 1.0 / 24.0, -1.0 / 2.0, 1.0]
+
+
+def det_sin_cos_deg(degrees):
+    if not math.isfinite(degrees):
+        return math.nan, math.nan
+    q = c_round(degrees / 90.0)
+    x = (degrees - (90.0 * q)) * (math.pi / 180.0)
+    x2 = x * x
+    s = 1.0 / 355687428096000.0
+    c = 1.0 / 20922789888000.0
+    for t in SIN_TERMS:
+        s = (s * x2) + t
+    for t in COS_TERMS:
+        c = (c * x2) + t
+    s *= x
+    m = math.fmod(q, 4.0)
+    quadrant = int(m + 4.0 if m < 0.0 else m)
+    return {1: (c, -s), 2: (-s, -c), 3: (-c, s)}.get(quadrant, (s, c))
+
+
+def det_atan(x):
+    negative = x < 0.0
+    if negative:
+        x = -x
+    inverted = x > 1.0
+    if inverted:
+        x = 1.0 / x
+    base = 0.0
+    if x > 0.41421356237309503:
+        x = (x - 1.0) / (x + 1.0)
+        base = math.pi / 4.0
+    x2 = x * x
+    total = 0.0
+    for n in range(25, -1, -1):
+        total = (total * x2) + ((1.0 if n % 2 == 0 else -1.0) / ((2.0 * n) + 1.0))
+    r = base + (total * x)
+    if inverted:
+        r = (math.pi / 2.0) - r
+    return -r if negative else r
+
+
+def det_atan2_deg(y, x):
+    deg = 180.0 / math.pi
+    if math.isnan(x) or math.isnan(y):
+        return math.nan
+    if x > 0.0:
+        return det_atan(y / x) * deg
+    if x < 0.0:
+        return (det_atan(y / x) * deg) + (180.0 if y >= 0.0 else -180.0)
+    if y == 0.0:
+        return 0.0
+    return 90.0 if y > 0.0 else -90.0
+
+
+def det_asin_deg(x):
+    if math.isnan(x):
+        return x
+    return det_atan2_deg(x, math.sqrt(max(0.0, 1.0 - (x * x))))
+
+
+def det_acos_deg(x):
+    if math.isnan(x):
+        return x
+    return det_atan2_deg(math.sqrt(max(0.0, 1.0 - (x * x))), x)
+
+
 # --- distributions ------------------------------------------------------------
 
 def bounded(r, n):
@@ -195,6 +273,40 @@ def normal(r, mean, sd):
 
 def lognormal(r, mu, sigma):
     return det_exp(normal(r, mu, sigma))
+
+
+def gamma(r, shape, scale):
+    boost = 1.0
+    if shape < 1.0:
+        u = 1.0 - uniform01(r)
+        boost = det_exp(det_log(u) / shape)
+        shape += 1.0
+    d = shape - (1.0 / 3.0)
+    c = 1.0 / math.sqrt(9.0 * d)
+    while True:
+        x = normal(r, 0.0, 1.0)
+        t = 1.0 + (c * x)
+        if t <= 0.0:
+            continue
+        v = t * t * t
+        u = uniform01(r)
+        if u <= 0.0:
+            continue
+        bound = ((((0.5 * x) * x) + d) - (d * v)) + (d * det_log(v))
+        if det_log(u) < bound:
+            return ((d * v) * scale) * boost
+
+
+def beta(r, a, b):
+    x = gamma(r, a, 1.0)
+    y = gamma(r, b, 1.0)
+    return x / (x + y)
+
+
+def weibull(r, shape, scale):
+    u = 1.0 - uniform01(r)
+    e = -det_log(u)
+    return scale * det_exp(det_log(e) / shape) if e > 0.0 else 0.0
 
 
 class Discrete:
@@ -338,6 +450,54 @@ def emit():
     add(f"inline constexpr std::array<std::uint64_t, {len(exp_in)}> exp_out{{{u64_list(bits(det_exp(x)) for x in exp_in)}}};")
     add(f"inline constexpr std::array<std::uint64_t, {len(log_in)}> log_in{{{u64_list(bits(x) for x in log_in)}}};")
     add(f"inline constexpr std::array<std::uint64_t, {len(log_in)}> log_out{{{u64_list(bits(det_log(x)) for x in log_in)}}};")
+
+
+    # Gamma, Beta and Weibull draws, one stream each, across the shape < 1
+    # boost and the shape >= 1 branch.
+    gamma_shapes = [0.3, 1.0, 2.5, 9.0]
+    rows = []
+    for k in gamma_shapes:
+        r = Rng(31)
+        rows.append("{" + u64_list(bits(gamma(r, k, 2.0)) for _ in range(count)) + "}")
+    add(f"inline constexpr std::array<std::uint64_t, {len(gamma_shapes)}> gamma_shapes{{{u64_list(bits(k) for k in gamma_shapes)}}};")
+    add(f"inline constexpr std::array<std::array<std::uint64_t, count>, {len(gamma_shapes)}> gamma_31{{{{{', '.join(rows)}}}}};")
+    r = Rng(37)
+    add(f"inline constexpr std::array<std::uint64_t, count> beta_37{{{u64_list(bits(beta(r, 0.6 * 4.0, 0.4 * 4.0)) for _ in range(count))}}};")
+    r = Rng(41)
+    add(f"inline constexpr std::array<std::uint64_t, count> weibull_41{{{u64_list(bits(weibull(r, 2.902, 4.25)) for _ in range(count))}}};")
+    r, h = Rng(43), 0xCBF29CE484222325
+    for i in range(100000):
+        for byte in struct.pack("<d", gamma(r, 0.4 + (i % 7) * 0.5, 1.5)):
+            h = ((h ^ byte) * 0x100000001B3) & M64
+    add(f"inline constexpr std::uint64_t gamma_43_hash_100k = 0x{h:016x}ULL;")
+
+    # Trigonometry on fixed inputs: quadrant boundaries, both signs, the
+    # tan(pi/8) and 1 folds of atan, the axes of atan2.
+    trig_in = [0.0, -0.0, 1.0, -1.0, 30.0, 44.999999, 45.0, 45.000001, 60.0, 89.5, 90.0, 135.0,
+               180.0, -180.0, 225.0, 270.0, 315.0, 360.0, -720.3, 23.44, 90.833, 1e6 + 0.25, 1e-9]
+    add(f"inline constexpr std::array<std::uint64_t, {len(trig_in)}> trig_in{{{u64_list(bits(x) for x in trig_in)}}};")
+    add(f"inline constexpr std::array<std::uint64_t, {len(trig_in)}> sin_deg_out{{{u64_list(bits(det_sin_cos_deg(x)[0]) for x in trig_in)}}};")
+    add(f"inline constexpr std::array<std::uint64_t, {len(trig_in)}> cos_deg_out{{{u64_list(bits(det_sin_cos_deg(x)[1]) for x in trig_in)}}};")
+    atan_in = [0.0, 1e-12, 0.1, 0.41421356237309503, 0.41421356237309515, 0.5, 1.0, 1.0000000000000002,
+               2.0, 10.0, 1e10, math.inf, -0.3, -1.0, -50.0]
+    add(f"inline constexpr std::array<std::uint64_t, {len(atan_in)}> atan_in{{{u64_list(bits(x) for x in atan_in)}}};")
+    add(f"inline constexpr std::array<std::uint64_t, {len(atan_in)}> atan_out{{{u64_list(bits(det_atan(x)) for x in atan_in)}}};")
+    atan2_in = [(1.0, 1.0), (1.0, -1.0), (-1.0, -1.0), (-1.0, 1.0), (0.0, -2.0), (-0.0, -2.0), (3.0, 0.0),
+                (-3.0, 0.0), (0.0, 0.0), (0.5, 0.866), (1e-8, -1.0)]
+    add(f"inline constexpr std::array<std::array<std::uint64_t, 2>, {len(atan2_in)}> atan2_in{{{{{', '.join('{' + u64_list([bits(y), bits(x)]) + '}' for y, x in atan2_in)}}}}};")
+    add(f"inline constexpr std::array<std::uint64_t, {len(atan2_in)}> atan2_deg_out{{{u64_list(bits(det_atan2_deg(y, x)) for y, x in atan2_in)}}};")
+    arc_in = [0.0, 0.5, -0.5, 0.9999, -0.9999, 1.0, -1.0, 0.25881904510252074, -0.0145, 1.5]
+    add(f"inline constexpr std::array<std::uint64_t, {len(arc_in)}> arc_in{{{u64_list(bits(x) for x in arc_in)}}};")
+    add(f"inline constexpr std::array<std::uint64_t, {len(arc_in)}> asin_deg_out{{{u64_list(bits(det_asin_deg(x)) for x in arc_in)}}};")
+    add(f"inline constexpr std::array<std::uint64_t, {len(arc_in)}> acos_deg_out{{{u64_list(bits(det_acos_deg(x)) for x in arc_in)}}};")
+    # A hash of sin and cos over many angles: catches a reduction or
+    # quadrant difference anywhere in a long sweep.
+    h = 0xCBF29CE484222325
+    for i in range(100000):
+        sc = det_sin_cos_deg(-1000.0 + i * 0.0213)
+        for byte in struct.pack("<dd", *sc):
+            h = ((h ^ byte) * 0x100000001B3) & M64
+    add(f"inline constexpr std::uint64_t sin_cos_hash_100k = 0x{h:016x}ULL;")
 
     # Hash of many normal draws: catches a difference anywhere in a long run.
     r, h = Rng(29), 0xCBF29CE484222325

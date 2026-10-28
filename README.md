@@ -17,9 +17,9 @@ The shared foundation of the dasmig generator libraries ([address](https://githu
 
 - **xoshiro256\*\* engine** seeded through SplitMix64, with `seed()`, `unseed()` and `split(label)`. A split stream depends only on the parent seed and the label, so adding a draw in one part of a generator does not shift the others.
 
-- **Distributions with fixed algorithms.** Uniform integer (Lemire), uniform real, Bernoulli, normal (Marsaglia polar), log-normal, weighted choice, shuffle (Fisher-Yates), sampling without replacement and pick.
+- **Distributions with fixed algorithms.** Uniform integer (Lemire), uniform real, Bernoulli, normal (Marsaglia polar), log-normal, gamma (Marsaglia and Tsang), beta, Weibull, weighted choice, shuffle (Fisher-Yates), sampling without replacement and pick.
 
-- **Deterministic `exp` and `log`** built only from operations IEEE 754 defines exactly, because platform `std::exp` and `std::log` differ in the last bit.
+- **Deterministic `exp`, `log` and trigonometry** (sine and cosine, arctangent and the arcsine and arccosine, in degrees) built only from operations IEEE 754 defines exactly, because the platform `<cmath>` functions differ in the last bit.
 
 - **Data tables with extension layers.** A TSV reader with typed, exactly parsed cells and located errors (`file:line: column: problem`), and layered tables: users add, override or replace rows with their own files, validated atomically, with a data hash for replay.
 

@@ -3,11 +3,13 @@
 #include "../dasmig/core.hpp"
 #include "kat_vectors.hpp"
 
+#include <algorithm>
 #include <array>
 #include <bit>
 #include <cmath>
 #include <cstdint>
 #include <limits>
+#include <numbers>
 #include <numeric>
 #include <set>
 #include <stdexcept>
@@ -423,6 +425,98 @@ TEST_CASE("bernoulli edges and real-distribution errors", "[distributions][error
     REQUIRE_THROWS_AS(core::uniform_real(r, -1.7e308, 1.7e308), std::invalid_argument);
     REQUIRE_THROWS_AS(core::normal(r, 0.0, -1.0), std::invalid_argument);
     REQUIRE_THROWS_AS(core::normal(r, nan, 1.0), std::invalid_argument);
+    REQUIRE_THROWS_AS(core::gamma(r, 0.0, 1.0), std::invalid_argument);
+    REQUIRE_THROWS_AS(core::gamma(r, 1.0, -1.0), std::invalid_argument);
+    REQUIRE_THROWS_AS(core::gamma(r, nan, 1.0), std::invalid_argument);
+    REQUIRE_THROWS_AS(core::beta(r, 1.0, 0.0), std::invalid_argument);
+    REQUIRE_THROWS_AS(core::beta(r, inf, 1.0), std::invalid_argument);
+    REQUIRE_THROWS_AS(core::weibull(r, -2.0, 1.0), std::invalid_argument);
+    REQUIRE_THROWS_AS(core::weibull(r, 2.0, inf), std::invalid_argument);
+    REQUIRE(core::gamma(r, 2.0, 0.0) == 0.0);
+    REQUIRE(core::weibull(r, 2.0, 0.0) == 0.0);
+}
+
+TEST_CASE("gamma, beta and weibull match the reference", "[distributions][kat]")
+{
+    for (std::size_t i = 0; i < kat::gamma_shapes.size(); ++i)
+    {
+        const double shape = from_bits(kat::gamma_shapes[i]);
+        INFO("gamma shape " << shape);
+        rng r{31};
+        for (const auto expected : kat::gamma_31[i])
+        {
+            REQUIRE(to_bits(core::gamma(r, shape, 2.0)) == expected);
+        }
+    }
+    rng b{37};
+    for (const auto expected : kat::beta_37)
+    {
+        REQUIRE(to_bits(core::beta(b, 0.6 * 4.0, 0.4 * 4.0)) == expected);
+    }
+    rng w{41};
+    for (const auto expected : kat::weibull_41)
+    {
+        REQUIRE(to_bits(core::weibull(w, 2.902, 4.25)) == expected);
+    }
+}
+
+TEST_CASE("100,000 gamma draws hash to the reference value", "[distributions][kat]")
+{
+    rng r{43};
+    std::uint64_t h = 0xcbf29ce484222325ULL;
+    for (int i = 0; i < 100000; ++i)
+    {
+        std::uint64_t bits = to_bits(core::gamma(r, 0.4 + ((i % 7) * 0.5), 1.5));
+        for (int byte = 0; byte < 8; ++byte)
+        {
+            h ^= bits & 0xffU;
+            h *= 0x100000001b3ULL;
+            bits >>= 8U;
+        }
+    }
+    REQUIRE(h == kat::gamma_43_hash_100k);
+}
+
+TEST_CASE("gamma, beta and weibull have the right moments", "[distributions][stats]")
+{
+    constexpr int n = 200000;
+    rng r{47};
+    for (const double shape : {0.3, 0.8, 1.0, 2.5, 9.0})
+    {
+        INFO("gamma shape " << shape);
+        double sum = 0.0;
+        double sum_sq = 0.0;
+        for (int i = 0; i < n; ++i)
+        {
+            const double x = core::gamma(r, shape, 2.0);
+            REQUIRE(x >= 0.0);
+            sum += x;
+            sum_sq += x * x;
+        }
+        const double mean = sum / n;
+        // mean k theta, variance k theta^2
+        REQUIRE(mean == Catch::Approx(shape * 2.0).epsilon(0.01));
+        REQUIRE(sum_sq / n - mean * mean == Catch::Approx(shape * 4.0).epsilon(0.03));
+    }
+
+    double sum = 0.0;
+    double sum_sq = 0.0;
+    for (int i = 0; i < n; ++i)
+    {
+        const double x = core::beta(r, 2.4, 1.6);
+        REQUIRE((x >= 0.0 && x <= 1.0));
+        sum += x;
+        sum_sq += x * x;
+    }
+    // mean a / (a + b), variance a b / ((a + b)^2 (a + b + 1))
+    const double beta_mean = sum / n;
+    REQUIRE(beta_mean == Catch::Approx(0.6).margin(0.003));
+    REQUIRE(sum_sq / n - beta_mean * beta_mean == Catch::Approx(0.048).margin(0.001));
+
+    sum = 0.0;
+    for (int i = 0; i < n; ++i) sum += core::weibull(r, 2.0, 3.0);
+    // mean scale * Gamma(1 + 1 / k); Gamma(1.5) = sqrt(pi) / 2
+    REQUIRE(sum / n == Catch::Approx(3.0 * std::sqrt(std::numbers::pi) / 2.0).epsilon(0.005));
 }
 
 // ---------------------------------------------------------------------------
@@ -586,4 +680,100 @@ TEST_CASE("exp and log special values", "[math]")
     REQUIRE(core::math::log(inf) == inf);
     REQUIRE(std::isnan(core::math::log(-1.0)));
     REQUIRE(std::isnan(core::math::log(nan)));
+}
+
+TEST_CASE("trigonometry matches the reference bit for bit", "[math][kat]")
+{
+    for (std::size_t i = 0; i < kat::trig_in.size(); ++i)
+    {
+        const double x = from_bits(kat::trig_in[i]);
+        INFO("sin_cos_deg(" << x << ")");
+        const auto sc = core::math::sin_cos_deg(x);
+        REQUIRE(to_bits(sc.sin) == kat::sin_deg_out[i]);
+        REQUIRE(to_bits(sc.cos) == kat::cos_deg_out[i]);
+        REQUIRE(to_bits(core::math::sin_deg(x)) == kat::sin_deg_out[i]);
+        REQUIRE(to_bits(core::math::cos_deg(x)) == kat::cos_deg_out[i]);
+    }
+    for (std::size_t i = 0; i < kat::atan_in.size(); ++i)
+    {
+        INFO("atan(" << from_bits(kat::atan_in[i]) << ")");
+        REQUIRE(to_bits(core::math::atan(from_bits(kat::atan_in[i]))) == kat::atan_out[i]);
+    }
+    for (std::size_t i = 0; i < kat::atan2_in.size(); ++i)
+    {
+        const double y = from_bits(kat::atan2_in[i][0]);
+        const double x = from_bits(kat::atan2_in[i][1]);
+        INFO("atan2_deg(" << y << ", " << x << ")");
+        REQUIRE(to_bits(core::math::atan2_deg(y, x)) == kat::atan2_deg_out[i]);
+    }
+    for (std::size_t i = 0; i < kat::arc_in.size(); ++i)
+    {
+        const double x = from_bits(kat::arc_in[i]);
+        INFO("asin_deg and acos_deg(" << x << ")");
+        REQUIRE(to_bits(core::math::asin_deg(x)) == kat::asin_deg_out[i]);
+        REQUIRE(to_bits(core::math::acos_deg(x)) == kat::acos_deg_out[i]);
+    }
+    std::uint64_t h = 0xcbf29ce484222325ULL;
+    for (int i = 0; i < 100000; ++i)
+    {
+        const auto sc = core::math::sin_cos_deg(-1000.0 + core::math::fenced(i * 0.0213));
+        for (std::uint64_t bits : {to_bits(sc.sin), to_bits(sc.cos)})
+        {
+            for (int byte = 0; byte < 8; ++byte)
+            {
+                h ^= bits & 0xffU;
+                h *= 0x100000001b3ULL;
+                bits >>= 8U;
+            }
+        }
+    }
+    REQUIRE(h == kat::sin_cos_hash_100k);
+}
+
+TEST_CASE("trigonometry is within a few ulp of the platform libm", "[math]")
+{
+    constexpr double rad = std::numbers::pi / 180.0;
+    rng r{53};
+    double worst = 0.0;
+    double worst_atan = 0.0;
+    for (int i = 0; i < 200000; ++i)
+    {
+        const double d = core::uniform_real(r, -720.0, 720.0);
+        const auto sc = core::math::sin_cos_deg(d);
+        // Absolute error: near a zero of sin or cos an ulp count means nothing.
+        worst = std::max({worst, std::abs(sc.sin - std::sin(d * rad)), std::abs(sc.cos - std::cos(d * rad))});
+        const double t = core::uniform_real(r, -50.0, 50.0);
+        worst_atan = std::max(worst_atan, ulp_distance(core::math::atan(t), std::atan(t)));
+    }
+    // std::sin(d * rad) itself carries the rounding of d * rad: half an ulp
+    // of 4 pi is 8.9e-16.
+    REQUIRE(worst < 2e-15);
+    REQUIRE(worst_atan <= 2.0);
+    for (const double x : {-0.999, -0.5, 0.0, 0.3, 0.7071, 0.999})
+    {
+        REQUIRE(core::math::asin_deg(x) == Catch::Approx(std::asin(x) / rad).margin(1e-12));
+        REQUIRE(core::math::acos_deg(x) == Catch::Approx(std::acos(x) / rad).margin(1e-12));
+    }
+    REQUIRE(core::math::atan2_deg(-1.0, -1.0) == Catch::Approx(-135.0).margin(1e-12));
+}
+
+TEST_CASE("trigonometry special values", "[math]")
+{
+    const double nan = std::numeric_limits<double>::quiet_NaN();
+    const double inf = std::numeric_limits<double>::infinity();
+    REQUIRE(core::math::sin_deg(90.0) == 1.0);
+    REQUIRE(core::math::cos_deg(0.0) == 1.0);
+    REQUIRE(core::math::sin_deg(180.0) == 0.0);
+    REQUIRE(core::math::cos_deg(-180.0) == -1.0);
+    REQUIRE(std::isnan(core::math::sin_deg(nan)));
+    REQUIRE(std::isnan(core::math::cos_deg(inf)));
+    REQUIRE(core::math::atan(inf) == std::numbers::pi / 2.0);
+    REQUIRE(std::isnan(core::math::atan(nan)));
+    REQUIRE(core::math::atan2_deg(0.0, 0.0) == 0.0);
+    REQUIRE(core::math::atan2_deg(2.0, 0.0) == 90.0);
+    REQUIRE(std::isnan(core::math::atan2_deg(nan, 1.0)));
+    REQUIRE(core::math::asin_deg(2.0) == 90.0);
+    REQUIRE(core::math::acos_deg(-2.0) == 180.0);
+    REQUIRE(std::isnan(core::math::asin_deg(nan)));
+    REQUIRE(std::isnan(core::math::acos_deg(nan)));
 }
