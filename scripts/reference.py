@@ -341,6 +341,82 @@ def sample_indices(r, n, k):
     return idx[:k]
 
 
+# --- patterns -------------------------------------------------------------------
+
+DIGITS = "0123456789"
+CAPITALS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+
+
+def parse_pattern(text):
+    """A sequence: a list of (atom, lo, hi), where an atom is ("lit", c),
+    ("set", chars) or ("group", [sequence, ...]). Well-formed patterns only;
+    the C++ tests cover the parse errors."""
+    pos = 0
+
+    def sequence():
+        nonlocal pos
+        items = []
+        while pos < len(text) and text[pos] not in "|)":
+            c = text[pos]
+            if c == "{":
+                close = text.index("}", pos)
+                counts = [int(x) for x in text[pos + 1:close].split(",")]
+                items[-1] = (items[-1][0], counts[0], counts[-1])
+                pos = close + 1
+                continue
+            if c in "#@*":
+                atom = ("set", {"#": DIGITS, "@": CAPITALS, "*": DIGITS + CAPITALS}[c])
+                pos += 1
+            elif c == "[":
+                close = text.index("]", pos + 1)
+                body, chars, i = text[pos + 1:close], "", 0
+                while i < len(body):
+                    if i + 2 < len(body) and body[i + 1] == "-":
+                        chars += "".join(chr(x) for x in range(ord(body[i]), ord(body[i + 2]) + 1))
+                        i += 3
+                    else:
+                        chars += body[i]
+                        i += 1
+                atom = ("set", chars)
+                pos = close + 1
+            elif c == "(":
+                pos += 1
+                alternatives = [sequence()]
+                while text[pos] == "|":
+                    pos += 1
+                    alternatives.append(sequence())
+                pos += 1
+                atom = ("group", alternatives)
+            elif c == "\\":
+                atom = ("lit", text[pos + 1])
+                pos += 2
+            else:
+                atom = ("lit", c)
+                pos += 1
+            items.append((atom, 1, 1))
+        return items
+
+    return sequence()
+
+
+def draw_pattern(r, seq):
+    out = []
+
+    def run(seq):
+        for (kind, value), lo, hi in seq:
+            times = lo if lo == hi else lo + bounded(r, hi - lo + 1)   # uniform_int(r, lo, hi)
+            for _ in range(times):
+                if kind == "lit":
+                    out.append(value)
+                elif kind == "set":
+                    out.append(value[bounded(r, len(value))])
+                else:
+                    run(value[bounded(r, len(value))])
+
+    run(seq)
+    return "".join(out)
+
+
 # --- published vectors ----------------------------------------------------------
 
 def check_published():
@@ -388,6 +464,7 @@ def emit():
     add("#define DASMIG_CORE_KAT_VECTORS_HPP")
     add("#include <array>")
     add("#include <cstdint>")
+    add("#include <string_view>")
     add("namespace kat")
     add("{")
     add(f"inline constexpr std::size_t count = {count};")
@@ -526,6 +603,26 @@ def emit():
         for byte in struct.pack("<Q", Rng(item_seed(99, i))()):
             h = ((h ^ byte) * 0x100000001B3) & M64
     add(f"inline constexpr std::uint64_t batch_99_hash_10k = 0x{h:016x}ULL;")
+
+    # Pattern draws pin pattern::draw's use of the engine.
+    def cpp_string(s):
+        return '"' + s.replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+    patterns = ["@@-###", "#########", "[A-CEGHJ-PR-TW-Z][A-CEGHJ-NPR-TW-Z]######[A-D]",
+                "[A-HJ-NP-Z2-9]{6}", "(DE|GB(##|@{2,4})|FR)-#{1,3}(\\.@){0,2}"]
+    pattern_seeds = [1, 7, 42]
+    add(f"inline constexpr std::array<std::uint64_t, {len(pattern_seeds)}> pattern_seed{{{u64_list(pattern_seeds)}}};")
+    add(f"inline constexpr std::array<std::string_view, {len(patterns)}> pattern_text{{{', '.join(cpp_string(p) for p in patterns)}}};")
+    rows = ", ".join("{" + ", ".join(cpp_string(draw_pattern(Rng(s), parse_pattern(p))) for s in pattern_seeds) + "}"
+                     for p in patterns)
+    add(f"inline constexpr std::array<std::array<std::string_view, {len(pattern_seeds)}>, {len(patterns)}> pattern_draw{{{{{rows}}}}};")
+    # 1,000 consecutive draws of the last pattern from one engine.
+    r, h = Rng(11), 0xCBF29CE484222325
+    seq = parse_pattern(patterns[-1])
+    for _ in range(1000):
+        for byte in draw_pattern(r, seq).encode("ascii") + b"\n":
+            h = ((h ^ byte) * 0x100000001B3) & M64
+    add(f"inline constexpr std::uint64_t pattern_11_hash_1k = 0x{h:016x}ULL;")
 
     add("} // namespace kat")
     add("#endif // DASMIG_CORE_KAT_VECTORS_HPP")

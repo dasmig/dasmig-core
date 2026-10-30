@@ -4,6 +4,7 @@
 #define DASMIG_CORE_KAT_VECTORS_HPP
 #include <array>
 #include <cstdint>
+#include <string_view>
 namespace kat
 {
 inline constexpr std::size_t count = 16;
@@ -51,5 +52,9 @@ inline constexpr std::array<std::uint64_t, 6> item_index{0x0000000000000000ULL, 
 inline constexpr std::array<std::uint64_t, 6> item_seed_7{0x4b34cbb741cdabdbULL, 0x480e042d0710436cULL, 0xf7c38cb0f03c5a31ULL, 0xaaa8021beaabd987ULL, 0xf0cee5c8c95048faULL, 0x7017cb528c5fa2c9ULL};
 inline constexpr std::array<std::uint64_t, 4> attempt_seed_7_5{0xe4778e65651298f4ULL, 0x60b8d8a68228a204ULL, 0x85d48a1bc82622e1ULL, 0xd14496081dc0c078ULL};
 inline constexpr std::uint64_t batch_99_hash_10k = 0x7d38c3b970ad00caULL;
+inline constexpr std::array<std::uint64_t, 3> pattern_seed{0x0000000000000001ULL, 0x0000000000000007ULL, 0x000000000000002aULL};
+inline constexpr std::array<std::string_view, 5> pattern_text{"@@-###", "#########", "[A-CEGHJ-PR-TW-Z][A-CEGHJ-NPR-TW-Z]######[A-D]", "[A-HJ-NP-Z2-9]{6}", "(DE|GB(##|@{2,4})|FR)-#{1,3}(\\.@){0,2}"};
+inline constexpr std::array<std::array<std::string_view, 3>, 5> pattern_draw{{{"SN-536", "SH-899", "CJ-699"}, {"755361038", "728998014", "036997787"}, {"SM536103D", "SH899801B", "BK699778D"}, {"YSUNYE", "YJ4995", "CNX792"}, {"FR-53.B.W", "FR-8.W.C", "DE-69.S.T"}}};
+inline constexpr std::uint64_t pattern_11_hash_1k = 0xcc7cfd10803d81baULL;
 } // namespace kat
 #endif // DASMIG_CORE_KAT_VECTORS_HPP
