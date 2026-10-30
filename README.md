@@ -27,6 +27,14 @@ The shared foundation of the dasmig generator libraries ([address](https://githu
 
 - **Weighted tables, JSON and seed signatures.** Weighted choice with per-call conditional weights and exclusions; a dependency-free JSON writer with platform-independent number formatting; a `seed-data` replay format.
 
+- **Check digits.** Luhn, ISO 7064 (MOD 97-10, MOD 11-2, MOD 11,10), IBAN, GTIN, ICAO 9303 and Verhoeff, plus the weighted sums national identifiers build on; `constexpr`, with errors that name the position.
+
+- **Identifier patterns.** A small pattern language (`[A-CEGHJ-PR-TW-Z]@######[A-D]`, `(DE|FR)#{2,4}`) to draw a string with a fixed use of the engine, test a string in polynomial time, and count the strings a pattern can make.
+
+- **Money.** Amounts in integer minor units with their ISO 4217 code, rounding from major units halves away from zero, exact decimal text, and one JSON shape.
+
+- **Time-zone rules.** Periods plus a POSIX TZ rule, as text the caller gives: the offset at an instant, local time to UTC and back through gaps and repeats, the same on every platform, without the operating system's time-zone database.
+
 - **Batch generation.** `item_seed`, `run_batch` and `for_each_batch` generate many results from one seed, in parallel if asked, with the same output for any thread count, optional uniqueness by a key, and JSON Lines and CSV writers for the results.
 
 - **Checked against an independent implementation.** `scripts/reference.py` implements every algorithm again in Python and generates the known-answer vectors the C++ tests compare against, bit for bit. The engine is checked against published test vectors.

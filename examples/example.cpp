@@ -1,8 +1,10 @@
 #include "../dasmig/core.hpp"
 
 #include <array>
+#include <chrono>
 #include <cstdint>
 #include <iostream>
+#include <string>
 #include <string_view>
 #include <vector>
 
@@ -84,5 +86,21 @@ int main()
     core::rng replay{person.child_seed("body")};
     std::cout << "\nReplayed height: " << core::normal(replay, 170.0, 7.5)
               << " cm\n";
+
+    // An identifier: a pattern for the body, then its check digit.
+    const auto card = core::pattern::parse("4###########");
+    auto ids = person.split("ids");
+    std::string number = card.draw(ids);
+    number += core::luhn_digit(number);
+    std::cout << "\nCard: " << number << (core::luhn_valid(number) ? " (valid)" : "") << '\n';
+
+    // Money in minor units, and a local time from a zone's rules.
+    const auto income = core::money::from_major(core::lognormal(ids, 10.4, 0.6), "BRL", 2);
+    std::cout << "Income: " << income.decimal() << ' ' << income.currency << '\n';
+    const auto sao_paulo = core::tz_rules::parse("1550368800/-10800/-03/s", "<-03>3");
+    const std::chrono::sys_seconds noon_utc{std::chrono::sys_days{std::chrono::year{2026} / 3 / 1}};
+    const auto local = sao_paulo.to_local(noon_utc + std::chrono::hours{12});
+    std::cout << "Local hour in Sao Paulo at 12:00 UTC: "
+              << (local.time_since_epoch().count() % 86400) / 3600 << '\n';
     return 0;
 }
