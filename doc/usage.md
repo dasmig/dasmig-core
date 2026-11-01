@@ -231,6 +231,8 @@ python3 scripts/embed.py resources --tier lite --name biodatagen \
     --output dasmig/biodatagen_data.hpp
 ```
 
+`--files` embeds only the named files of the tier, so a library can split its tables between headers behind separate macros (country-generator compiles its countries and its locale tables in separately).
+
 The header defines `dasmig::embedded::biodatagen::files`. It is plain ASCII C++: bytes outside printable ASCII are octal escapes, so it compiles the same with or without `/utf-8`. Content is split into chunks below MSVC's string-literal limits, and CRLF is written as LF, so the header is the same from any checkout. City-generator's 3.1 MB `lite` tier becomes a 4 MB header that clang compiles in about 3 s and MSVC in about 7 s.
 
 **Loading.** `core::load_resource(path, embedded, root)` reads the embedded copy when there is one, otherwise `root / path`, otherwise returns empty:
